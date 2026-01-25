@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Cairo } from "next/font/google";
-import { motion } from "framer-motion";
 import type { IconType } from "react-icons";
 import {
   FaFacebookF,
@@ -106,7 +105,7 @@ const socials: { label: string; href: string; Icon: IconType }[] = [
 
 export default function AccountPage() {
   const { dir, lang, t } = useLanguage();
-  const [highlightReservations, setHighlightReservations] = useState(false);
+  const reservationsRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -114,21 +113,15 @@ export default function AccountPage() {
     }
 
     if (window.location.hash === "#reservations") {
-      const target = document.getElementById("reservations");
+      const target = reservationsRef.current;
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
-        const highlightTimer = window.setTimeout(
-          () => setHighlightReservations(true),
-          0
-        );
+        target.classList.add("reservation-highlight");
         const timer = window.setTimeout(
-          () => setHighlightReservations(false),
+          () => target.classList.remove("reservation-highlight"),
           1800
         );
-        return () => {
-          window.clearTimeout(highlightTimer);
-          window.clearTimeout(timer);
-        };
+        return () => window.clearTimeout(timer);
       }
     }
   }, []);
@@ -231,17 +224,10 @@ export default function AccountPage() {
           </div>
         </section>
 
-        <motion.section
+        <section
           id="reservations"
-          className="mx-auto mt-10 max-w-3xl scroll-mt-24 rounded-[28px] bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)] sm:p-8"
-          animate={
-            highlightReservations
-              ? {
-                  boxShadow: "0 0 0 2px rgba(234, 106, 54, 0.35)",
-                }
-              : { boxShadow: "0 14px 30px rgba(15, 23, 42, 0.08)" }
-          }
-          transition={{ duration: 0.35 }}
+          ref={reservationsRef}
+          className="mx-auto mt-10 max-w-3xl scroll-mt-24 rounded-[28px] bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)] transition-shadow duration-300 sm:p-8"
         >
           <div className="flex items-center justify-end">
             <h2 className="text-base font-semibold text-slate-900 sm:text-lg">
@@ -285,7 +271,7 @@ export default function AccountPage() {
               </div>
             ))}
           </div>
-        </motion.section>
+        </section>
 
         <section className="mx-auto mt-10 max-w-3xl rounded-[28px] bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)] sm:p-8">
           <div className="w-full">
