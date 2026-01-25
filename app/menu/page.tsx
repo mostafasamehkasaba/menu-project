@@ -1,12 +1,11 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
-import { addToCart } from "../lib/cart";
 import { categories, menuItems, todayOffers } from "../lib/menu-data";
-
-
+import { formatCurrency, getLocalizedText } from "../lib/i18n";
+import { useLanguage } from "../components/language-provider";
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
@@ -14,7 +13,7 @@ const cairo = Cairo({
 
 export default function MenuPage() {
   const [activeId, setActiveId] = useState("all");
-  const [toast, setToast] = useState<string | null>(null);
+  const { dir, lang, t, toggleLang } = useLanguage();
 
   const filteredItems = useMemo(() => {
     if (activeId === "all") {
@@ -23,56 +22,42 @@ export default function MenuPage() {
     return menuItems.filter((item) => item.category === activeId);
   }, [activeId]);
 
-  useEffect(() => {
-    if (!toast) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => setToast(null), 2000);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  const handleAddToCart = (item: (typeof menuItems)[number]) => {
-    addToCart({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      image: item.image,
-    });
-    setToast("تمت الإضافة للسلة");
-  };
-
   return (
     <div
       className={`${cairo.className} min-h-screen bg-[#f7f7f8] text-slate-900`}
-      dir="rtl"
+      dir={dir}
     >
       <div className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-8">
         <header className="grid grid-cols-3 items-center gap-3">
-          <button className="h-11 w-11 rounded-full bg-white text-sm font-semibold text-orange-600 shadow-[0_12px_24px_rgba(15,23,42,0.12)]">
-            A
+          <button
+            type="button"
+            onClick={toggleLang}
+            className="h-11 w-11 rounded-full bg-white text-sm font-semibold text-orange-600 shadow-[0_12px_24px_rgba(15,23,42,0.12)]"
+            aria-label={t("language")}
+            title={lang === "ar" ? t("languageEnglish") : t("languageArabic")}
+          >
+            {lang === "ar" ? "EN" : "AR"}
           </button>
           <div className="text-center">
-            <h1 className="text-xl font-semibold sm:text-2xl">مطعم الذواقة</h1>
+            <h1 className="text-xl font-semibold sm:text-2xl">
+              {t("restaurantName")}
+            </h1>
           </div>
           <div className="flex justify-start">
             <div className="grid h-11 w-11 place-items-center rounded-full bg-white text-orange-500 shadow-[0_12px_24px_rgba(15,23,42,0.12)]">
-              <span className="text-xl">⌁</span>
+              <span className="text-xl">âŒپ</span>
             </div>
           </div>
         </header>
 
         <div className="mt-5">
           <label className="relative block">
-            <span className="sr-only">search</span>
+            <span className="sr-only">{t("search")}</span>
             <input
               type="text"
-              placeholder="search"
+              placeholder={t("search")}
               className="w-full rounded-2xl border border-transparent bg-white px-5 py-4 text-sm text-slate-500 shadow-[0_10px_24px_rgba(15,23,42,0.06)] outline-none transition focus:border-orange-200"
             />
-            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400">
-              🔍
-            </span>
           </label>
         </div>
 
@@ -82,7 +67,7 @@ export default function MenuPage() {
               %
             </div>
             <h2 className="text-base font-semibold text-slate-900 sm:text-lg">
-              todaysOffers
+              {t("todaysOffers")}
             </h2>
           </div>
         </section>
@@ -99,19 +84,23 @@ export default function MenuPage() {
                 </span>
                 <img
                   src={offer.image}
-                  alt={offer.title}
+                  alt={getLocalizedText(offer.title, lang)}
                   className="h-40 w-full object-cover"
                   loading="lazy"
                 />
                 <div className="space-y-2 px-5 pb-5 pt-4 text-sm">
-                  <h3 className="text-base font-semibold">{offer.title}</h3>
-                  <p className="text-slate-500">{offer.desc}</p>
+                  <h3 className="text-base font-semibold">
+                    {getLocalizedText(offer.title, lang)}
+                  </h3>
+                  <p className="text-slate-500">
+                    {getLocalizedText(offer.desc, lang)}
+                  </p>
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-orange-500">
-                      egp {offer.price}
+                      {formatCurrency(offer.price, lang)}
                     </span>
                     <span className="text-xs text-slate-400 line-through">
-                      egp {offer.oldPrice}
+                      {formatCurrency(offer.oldPrice, lang)}
                     </span>
                   </div>
                 </div>
@@ -134,7 +123,7 @@ export default function MenuPage() {
                 }`}
               >
                 <span>{category.icon}</span>
-                {category.label}
+                {getLocalizedText(category.label, lang)}
               </button>
             ))}
           </div>
@@ -150,7 +139,7 @@ export default function MenuPage() {
                 <div className="relative">
                   <img
                     src={item.image}
-                    alt={item.name}
+                    alt={getLocalizedText(item.name, lang)}
                     className="h-44 w-full object-cover"
                     loading="lazy"
                   />
@@ -160,24 +149,32 @@ export default function MenuPage() {
                         item.tag === "new" ? "bg-emerald-500" : "bg-rose-500"
                       }`}
                     >
-                      {item.tag}
+                      {item.tag === "new" ? t("tagNew") : t("tagHot")}
                     </span>
                   )}
                 </div>
               </Link>
               <div className="relative space-y-2 px-5 pb-10 pt-4 text-sm">
                 <Link href={`/menu/${item.id}`}>
-                  <h3 className="text-base font-semibold">{item.name}</h3>
+                  <h3 className="text-base font-semibold">
+                    {getLocalizedText(item.name, lang)}
+                  </h3>
                 </Link>
-                <p className="text-slate-500">{item.desc}</p>
-                <p className="text-orange-500">egp {item.price}</p>
-                <button
-                  type="button"
-                  onClick={() => handleAddToCart(item)}
-                  className="absolute bottom-4 left-4 flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 text-xl text-white shadow-[0_10px_18px_rgba(234,106,54,0.35)]"
+                <p className="text-slate-500">
+                  {getLocalizedText(item.desc, lang)}
+                </p>
+                <p className="text-orange-500">
+                  {formatCurrency(item.price, lang)}
+                </p>
+                <Link
+                  href={`/menu/${item.id}`}
+                  className={`absolute bottom-4 flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 text-xl text-white shadow-[0_10px_18px_rgba(234,106,54,0.35)] ${
+                    dir === "rtl" ? "left-4" : "right-4"
+                  }`}
+                  aria-label={t("addToCart")}
                 >
                   +
-                </button>
+                </Link>
               </div>
             </article>
           ))}
@@ -185,17 +182,13 @@ export default function MenuPage() {
       </div>
 
       <button className="fixed bottom-20 right-6 flex items-center gap-2 rounded-full bg-black px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.2)]">
-        Talk with Us
+        {t("talkWithUs")}
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-white">
-          💬
+          ًں’¬
         </span>
       </button>
 
-      {toast && (
-        <div className="fixed right-6 top-6 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-[0_18px_30px_rgba(15,23,42,0.18)]">
-          {toast}
-        </div>
-      )}
     </div>
   );
 }
+

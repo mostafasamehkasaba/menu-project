@@ -10,6 +10,9 @@ import {
   updateCartItem,
   type CartItem,
 } from "../lib/cart";
+import { menuItems } from "../lib/menu-data";
+import { formatCurrency, getLocalizedText } from "../lib/i18n";
+import { useLanguage } from "../components/language-provider";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -17,12 +20,14 @@ const cairo = Cairo({
 });
 
 export default function CartPage() {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const { dir, lang, t } = useLanguage();
+  const [items, setItems] = useState<CartItem[]>(() => getCartItems());
   const [orderType, setOrderType] = useState<"takeaway" | "dineIn">("dineIn");
 
-  useEffect(() => {
-    setItems(getCartItems());
-  }, []);
+  const resolveItemName = (item: CartItem) => {
+    const match = menuItems.find((entry) => entry.id === item.id);
+    return match ? getLocalizedText(match.name, lang) : item.name;
+  };
 
   const total = useMemo(
     () => items.reduce((sum, item) => sum + item.price * item.qty, 0),
@@ -55,7 +60,7 @@ export default function CartPage() {
   return (
     <div
       className={`${cairo.className} min-h-screen bg-[#f7f7f8] text-slate-900`}
-      dir="rtl"
+      dir={dir}
     >
       <div className="mx-auto max-w-4xl px-4 pb-28 pt-6 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between">
@@ -65,13 +70,13 @@ export default function CartPage() {
           >
             ←
           </Link>
-          <h1 className="text-lg font-semibold sm:text-xl">myCart</h1>
+          <h1 className="text-lg font-semibold sm:text-xl">{t("myCart")}</h1>
         </header>
 
         <section className="mt-8 space-y-6">
           {items.length === 0 ? (
             <div className="rounded-3xl bg-white p-6 text-center text-sm text-slate-500 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-              السلة فارغة
+              {t("emptyCart")}
             </div>
           ) : (
             items.map((item) => (
@@ -103,15 +108,17 @@ export default function CartPage() {
                     -
                   </button>
                 </div>
-                <div className="flex-1 text-right">
-                  <h2 className="text-sm font-semibold">{item.name}</h2>
+                <div className="flex-1 text-end">
+                  <h2 className="text-sm font-semibold">
+                    {resolveItemName(item)}
+                  </h2>
                   <p className="text-xs text-orange-500">
-                    egp {item.price}
+                    {formatCurrency(item.price, lang)}
                   </p>
                 </div>
                 <img
                   src={item.image}
-                  alt={item.name}
+                  alt={resolveItemName(item)}
                   className="h-16 w-16 rounded-2xl object-cover"
                 />
               </article>
@@ -120,19 +127,23 @@ export default function CartPage() {
         </section>
 
         <section className="mt-8 rounded-3xl bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-          <h2 className="text-sm font-semibold text-slate-700">generalNotes</h2>
+          <h2 className="text-sm font-semibold text-slate-700">
+            {t("generalNotes")}
+          </h2>
           <textarea
-            placeholder="addNotesHere"
+            placeholder={t("addNotesHere")}
             className="mt-4 h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
           />
         </section>
 
         <section className="mt-8 rounded-3xl bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-          <h2 className="text-sm font-semibold text-slate-700">orderType</h2>
+          <h2 className="text-sm font-semibold text-slate-700">
+            {t("orderType")}
+          </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {[
-              { id: "takeaway", label: "takeaway" },
-              { id: "dineIn", label: "dineIn" },
+              { id: "takeaway", label: t("takeaway") },
+              { id: "dineIn", label: t("dineIn") },
             ].map((type) => (
               <button
                 key={type.id}
@@ -152,13 +163,16 @@ export default function CartPage() {
           </div>
         </section>
 
-        <button className="mt-8 w-full rounded-2xl bg-orange-500 py-4 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(234,106,54,0.35)]">
-          proceedToCheckout • egp {total.toFixed(2)}
-        </button>
+        <Link
+          href="/checkout"
+          className="mt-8 flex w-full items-center justify-center rounded-2xl bg-orange-500 py-4 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(234,106,54,0.35)]"
+        >
+          {t("proceedToCheckout")} • {formatCurrency(total, lang, 2)}
+        </Link>
       </div>
 
       <button className="fixed bottom-20 right-6 flex items-center gap-2 rounded-full bg-black px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.2)]">
-        Talk with Us
+        {t("talkWithUs")}
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-white">
           💬
         </span>

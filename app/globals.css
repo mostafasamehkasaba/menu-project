@@ -24,3 +24,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.follow-icon {
+  border-radius: 9999px;
+  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.follow-icon:hover {
+  background-color: #f97316;
+  color: #ffffff;
+  transform: translateY(-2px);
+}

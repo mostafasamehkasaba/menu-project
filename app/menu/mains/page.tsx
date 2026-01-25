@@ -1,24 +1,42 @@
+"use client";
+
 import Link from "next/link";
 import { Cairo } from "next/font/google";
+import type { LocalizedText } from "../../lib/i18n";
+import { formatCurrency, getLocalizedText } from "../../lib/i18n";
+import { useLanguage } from "../../components/language-provider";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
 });
 
-const categories = [
-  { id: "all", label: "الكل", icon: "✦", href: "/menu" },
-  { id: "apps", label: "مقبلات", icon: "🥗", href: "/menu/appetizers" },
-  { id: "mains", label: "وجبات رئيسية", icon: "🍔", active: true, href: "/menu/mains" },
-  { id: "drinks", label: "مشروبات", icon: "🥤", href: "/menu/drinks" },
-  { id: "desserts", label: "حلويات", icon: "🍰", href: "/menu" },
+const categories: {
+  id: string;
+  label: LocalizedText;
+  icon: string;
+  href: string;
+  active?: boolean;
+}[] = [
+  { id: "all", label: { ar: "الكل", en: "All" }, icon: "✦", href: "/menu" },
+  { id: "apps", label: { ar: "مقبلات", en: "Appetizers" }, icon: "🥗", href: "/menu/appetizers" },
+  { id: "mains", label: { ar: "وجبات رئيسية", en: "Mains" }, icon: "🍔", active: true, href: "/menu/mains" },
+  { id: "drinks", label: { ar: "مشروبات", en: "Drinks" }, icon: "🥤", href: "/menu/drinks" },
+  { id: "desserts", label: { ar: "حلويات", en: "Desserts" }, icon: "🍰", href: "/menu" },
 ];
 
-const mains = [
+const mains: {
+  id: number;
+  name: LocalizedText;
+  desc: LocalizedText;
+  price: number;
+  tag?: "new" | "hot";
+  image: string;
+}[] = [
   {
     id: 1,
-    name: "بيتزا مارغريتا",
-    desc: "بيتزا إيطالية مع صلصة الطماطم والموتزاريلا الطازجة والريحان",
+    name: { ar: "بيتزا مارغريتا", en: "Margherita pizza" },
+    desc: { ar: "بيتزا إيطالية مع صلصة الطماطم والموتزاريلا الطازجة والريحان", en: "Italian pizza with tomato sauce, fresh mozzarella, and basil" },
     price: 150,
     tag: "new",
     image:
@@ -26,8 +44,8 @@ const mains = [
   },
   {
     id: 2,
-    name: "برجر لحم فاخر",
-    desc: "برجر لحم بقري طازج مع جبن الشيدر والخس والطماطم والصوص الخاص",
+    name: { ar: "برجر لحم فاخر", en: "Premium beef burger" },
+    desc: { ar: "برجر لحم بقري طازج مع جبن الشيدر والخس والطماطم والصوص الخاص", en: "Fresh beef burger with cheddar, lettuce, tomato, and special sauce" },
     price: 120,
     tag: "hot",
     image:
@@ -35,8 +53,8 @@ const mains = [
   },
   {
     id: 3,
-    name: "دجاج مشوي",
-    desc: "صدور دجاج مشوية مع الأرز والخضار المشكلة",
+    name: { ar: "دجاج مشوي", en: "Grilled chicken" },
+    desc: { ar: "صدور دجاج مشوية مع الأرز والخضار المشكلة", en: "Grilled chicken breast with rice and mixed vegetables" },
     price: 140,
     image:
       "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=1400&q=80",
@@ -44,15 +62,16 @@ const mains = [
 ];
 
 export default function MainsPage() {
+  const { dir, lang, t } = useLanguage();
   return (
     <div
       className={`${cairo.className} min-h-screen bg-[#f7f7f8] text-slate-900`}
-      dir="rtl"
+      dir={dir}
     >
       <div className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-xl font-semibold sm:text-2xl">
-            صفحة الوجبات الرئيسية
+            {t("mainsPageTitle")}
           </h1>
           <div className="flex flex-wrap items-center gap-3">
             {categories.map((category) => (
@@ -66,7 +85,7 @@ export default function MainsPage() {
                 }`}
               >
                 <span>{category.icon}</span>
-                {category.label}
+                {getLocalizedText(category.label, lang)}
               </Link>
             ))}
           </div>
@@ -81,7 +100,7 @@ export default function MainsPage() {
               <div className="relative">
                 <img
                   src={item.image}
-                  alt={item.name}
+                  alt={getLocalizedText(item.name, lang)}
                   className="h-52 w-full object-cover"
                   loading="lazy"
                 />
@@ -91,14 +110,20 @@ export default function MainsPage() {
                       item.tag === "new" ? "bg-emerald-500" : "bg-rose-500"
                     }`}
                   >
-                    {item.tag}
+                    {item.tag === "new" ? t("tagNew") : t("tagHot")}
                   </span>
                 )}
               </div>
               <div className="relative px-6 pb-6 pt-4 text-sm">
-                <h2 className="text-base font-semibold">{item.name}</h2>
-                <p className="mt-1 text-slate-500">{item.desc}</p>
-                <p className="mt-3 text-orange-500">egp {item.price}</p>
+                <h2 className="text-base font-semibold">
+                  {getLocalizedText(item.name, lang)}
+                </h2>
+                <p className="mt-1 text-slate-500">
+                  {getLocalizedText(item.desc, lang)}
+                </p>
+                <p className="mt-3 text-orange-500">
+                  {formatCurrency(item.price, lang)}
+                </p>
                 <button className="absolute -left-4 -bottom-4 flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 text-xl text-white shadow-[0_10px_18px_rgba(234,106,54,0.35)]">
                   +
                 </button>
@@ -109,7 +134,7 @@ export default function MainsPage() {
       </div>
 
       <button className="fixed bottom-20 right-6 flex items-center gap-2 rounded-full bg-black px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.2)]">
-        Talk with Us
+        {t("talkWithUs")}
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-white">
           💬
         </span>
