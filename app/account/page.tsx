@@ -347,7 +347,7 @@ export default function AccountPage() {
                         className="text-xl font-semibold text-slate-400 sm:text-2xl"
                         aria-hidden="true"
                       >
-                        ‹
+                        ›
                       </span>
                     )}
                   </div>
