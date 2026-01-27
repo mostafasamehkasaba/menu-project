@@ -1,7 +1,10 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { Cairo } from "next/font/google";
 import type { LocalizedText } from "../../lib/i18n";
+import { addToCart } from "../../lib/cart";
 import { formatCurrency, getLocalizedText } from "../../lib/i18n";
 import { useLanguage } from "../../components/language-provider";
 
@@ -19,6 +22,7 @@ const dealItems: {
   price: number;
   save: number;
   image: string;
+  menuId: number;
 }[] = [
   {
     id: 1,
@@ -30,6 +34,7 @@ const dealItems: {
     save: 101,
     image:
       "https://images.unsplash.com/photo-1606755962773-d324e0a13086?auto=format&fit=crop&w=1400&q=80",
+    menuId: 10,
   },
   {
     id: 2,
@@ -41,6 +46,7 @@ const dealItems: {
     save: 27,
     image:
       "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=1400&q=80",
+    menuId: 4,
   },
 ];
 
@@ -50,6 +56,7 @@ const comboDeals: {
   oldPrice: number;
   price: number;
   image: string;
+  menuId: number;
 }[] = [
   {
     id: 1,
@@ -58,6 +65,7 @@ const comboDeals: {
     price: 127,
     image:
       "/images/Margherita pizza.jpg",
+    menuId: 3,
   },
   {
     id: 2,
@@ -66,6 +74,7 @@ const comboDeals: {
     price: 102,
     image:
       "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=1200&q=80",
+    menuId: 4,
   },
   {
     id: 3,
@@ -74,6 +83,7 @@ const comboDeals: {
     price: 29,
     image:
       "https://images.unsplash.com/photo-1497534446932-c925b458314e?auto=format&fit=crop&w=1200&q=80",
+    menuId: 7,
   },
   {
     id: 4,
@@ -82,11 +92,25 @@ const comboDeals: {
     price: 68,
     image:
       "https://images.unsplash.com/photo-1551248429-40975aa4de74?auto=format&fit=crop&w=1200&q=80",
+    menuId: 2,
   },
 ];
 
 export default function OffersPage() {
   const { dir, lang, t } = useLanguage();
+  const handleAddToCart = (item: {
+    menuId: number;
+    title: LocalizedText;
+    price: number;
+    image: string;
+  }) => {
+    addToCart({
+      id: item.menuId,
+      name: getLocalizedText(item.title, lang),
+      price: item.price,
+      image: item.image,
+    });
+  };
   return (
     <div
       className={`${cairo.className} min-h-screen bg-[#f7f7f8] text-slate-900`}
@@ -161,12 +185,16 @@ export default function OffersPage() {
                 key={item.id}
                 className="overflow-hidden rounded-[28px] bg-white shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
               >
-                <div className="relative h-48 sm:h-56">
-                  <img
+                <Link
+                  href={`/menu/${item.menuId}`}
+                  className="relative block h-48 sm:h-56"
+                >
+                  <Image
                     src={item.image}
                     alt={getLocalizedText(item.title, lang)}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
+                    fill
+                    sizes="(min-width: 1024px) 1100px, 100vw"
+                    className="object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
                   <span className="absolute right-4 top-4 rounded-full bg-rose-500 px-3 py-1 text-xs font-semibold text-white">
@@ -180,7 +208,7 @@ export default function OffersPage() {
                       {getLocalizedText(item.desc, lang)}
                     </p>
                   </div>
-                </div>
+                </Link>
                 <div className="grid gap-4 p-5 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
                   <div className="flex items-center gap-4">
                     <div className="flex h-12 w-12 flex-col items-center justify-center rounded-full bg-orange-50 text-orange-500">
@@ -205,7 +233,11 @@ export default function OffersPage() {
                       </p>
                     </div>
                   </div>
-                  <button className="h-11 w-full rounded-2xl bg-orange-500 text-sm font-semibold text-white shadow-[0_14px_24px_rgba(234,106,54,0.3)] sm:w-44">
+                  <button
+                    type="button"
+                    onClick={() => handleAddToCart(item)}
+                    className="h-11 w-full rounded-2xl bg-orange-500 text-sm font-semibold text-white shadow-[0_14px_24px_rgba(234,106,54,0.3)] sm:w-44"
+                  >
                     {t("addToCart")}
                   </button>
                 </div>
@@ -226,17 +258,21 @@ export default function OffersPage() {
                 key={item.id}
                 className="overflow-hidden rounded-[26px] bg-white shadow-[0_14px_28px_rgba(15,23,42,0.08)]"
               >
-                <div className="relative h-40 sm:h-44">
-                  <img
+                <Link
+                  href={`/menu/${item.menuId}`}
+                  className="relative block h-40 sm:h-44"
+                >
+                  <Image
                     src={item.image}
                     alt={getLocalizedText(item.title, lang)}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
+                    fill
+                    sizes="(min-width: 1024px) 520px, 100vw"
+                    className="object-cover"
                   />
                   <span className="absolute right-4 top-4 rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white">
                     {t("combo")}
                   </span>
-                </div>
+                </Link>
                 <div className="flex items-center justify-between gap-4 px-5 py-4 text-sm">
                   <div className="text-end">
                     <h4 className="text-base font-semibold">

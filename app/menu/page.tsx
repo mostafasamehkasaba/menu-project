@@ -43,11 +43,7 @@ export default function MenuPage() {
               {t("restaurantName")}
             </h1>
           </div>
-          <div className="flex justify-start">
-            <div className="grid h-11 w-11 place-items-center rounded-full bg-white text-orange-500 shadow-[0_12px_24px_rgba(15,23,42,0.12)]">
-              <span className="text-xl">âŒپ</span>
-            </div>
-          </div>
+          <div className="h-11 w-11" aria-hidden="true" />
         </header>
 
         <div className="mt-5">

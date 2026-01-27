@@ -26,7 +26,7 @@ const socials: { label: string; href: string; Icon: IconType }[] = [
 ];
 
 export default function Home() {
-  const { dir, lang, t, toggleLang } = useLanguage();
+  const { dir, t } = useLanguage();
   return (
     <div
       className={`${cairo.className} relative min-h-screen overflow-hidden bg-[radial-gradient(900px_circle_at_8%_-10%,#fff0e6,transparent_55%),radial-gradient(900px_circle_at_95%_25%,#ffe7d9,transparent_55%),linear-gradient(180deg,#fff7f0_0%,#fffaf6_45%,#ffffff_100%)] text-slate-900`}
@@ -34,21 +34,6 @@ export default function Home() {
     >
       <div className="pointer-events-none absolute -left-24 top-10 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_30%_30%,#ffd7c2,transparent_60%)] opacity-70" />
       <div className="pointer-events-none absolute -right-24 top-36 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_30%_30%,#ffcaa9,transparent_60%)] opacity-60" />
-
-      <header className="relative z-10 flex items-center justify-between px-6 pt-6 sm:px-10">
-        <button
-          type="button"
-          onClick={toggleLang}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-sm font-semibold text-orange-600 shadow-[0_8px_24px_rgba(232,110,62,0.18)] ring-1 ring-orange-100"
-          aria-label={t("language")}
-          title={lang === "ar" ? t("languageEnglish") : t("languageArabic")}
-        >
-          {lang === "ar" ? "EN" : "AR"}
-        </button>
-        <div className="text-xs text-slate-400">
-          {lang === "ar" ? "AR" : "EN"}
-        </div>
-      </header>
 
       <main className="relative z-10 mx-auto flex min-h-[72vh] max-w-3xl flex-col items-center justify-center px-6 pb-16 pt-6 text-center sm:px-10">
         <div className="relative mb-6 flex h-28 w-28 items-center justify-center rounded-full bg-white shadow-[0_18px_40px_rgba(232,110,62,0.2)]">
@@ -70,7 +55,21 @@ export default function Home() {
           {t("welcomeTitle")}
         </h1>
         <p className="mt-2 text-base text-slate-500 sm:text-lg">
-          {t("restaurantName")}
+          <span className="inline-flex items-center gap-2" dir="ltr">
+            <span className="inline-flex h-6 w-8 items-center justify-center rounded-md bg-orange-100 text-orange-600">
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                className="h-4 w-6"
+              >
+                <path
+                  d="M3 5h1v14H3V5zm3 0h2v14H6V5zm4 0h1v14h-1V5zm3 0h2v14h-2V5zm4 0h1v14h-1V5zm3 0h2v14h-2V5z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+            <span dir={dir}>{t("restaurantName")}</span>
+          </span>
         </p>
 
         <div className="mt-10 flex w-full max-w-md flex-col gap-4">

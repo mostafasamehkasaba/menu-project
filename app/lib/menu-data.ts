@@ -128,6 +128,15 @@ export const menuItems: MenuItem[] = [
     ],
   },
   {
+    id: 10,
+    name: { ar: "وجبة عائلية", en: "Family meal" },
+    desc: { ar: "2 برجر + بيتزا كبيرة + 4 مشروبات", en: "2 burgers + large pizza + 4 drinks" },
+    price: 399,
+    category: "mains",
+    image:
+      "https://images.unsplash.com/photo-1606755962773-d324e0a13086?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
     id: 5,
     name: { ar: "دجاج مشوي", en: "Grilled chicken" },
     desc: { ar: "صدور دجاج مشوية مع الأرز والخضار المشكلة", en: "Grilled chicken breast with rice and mixed vegetables" },

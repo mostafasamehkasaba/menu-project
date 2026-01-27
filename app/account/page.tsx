@@ -1,16 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Cairo } from "next/font/google";
-import type { IconType } from "react-icons";
-import {
-  FaFacebookF,
-  FaInstagram,
-  FaTiktok,
-  FaWhatsapp,
-  FaXTwitter,
-} from "react-icons/fa6";
+import { motion } from "framer-motion";
 import type { LocalizedText, TranslationKey } from "../lib/i18n";
 import { formatCurrency, getLocalizedText } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
@@ -95,17 +88,17 @@ const settings: {
   { label: "logout", icon: "⎋", danger: true },
 ];
 
-const socials: { label: string; href: string; Icon: IconType }[] = [
-  { label: "TikTok", href: "#", Icon: FaTiktok },
-  { label: "WhatsApp", href: "#", Icon: FaWhatsapp },
-  { label: "X", href: "#", Icon: FaXTwitter },
-  { label: "Instagram", href: "#", Icon: FaInstagram },
-  { label: "Facebook", href: "#", Icon: FaFacebookF },
+const socials = [
+  { label: "TikTok", icon: "♪", href: "#" },
+  { label: "WhatsApp", icon: "🟢", href: "#" },
+  { label: "X", icon: "X", href: "#" },
+  { label: "Instagram", icon: "◎", href: "#" },
+  { label: "Facebook", icon: "f", href: "#" },
 ];
 
 export default function AccountPage() {
-  const { dir, lang, t } = useLanguage();
-  const reservationsRef = useRef<HTMLElement | null>(null);
+  const { dir, lang, t, toggleLang } = useLanguage();
+  const [highlightReservations, setHighlightReservations] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -113,15 +106,21 @@ export default function AccountPage() {
     }
 
     if (window.location.hash === "#reservations") {
-      const target = reservationsRef.current;
+      const target = document.getElementById("reservations");
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
-        target.classList.add("reservation-highlight");
-        const timer = window.setTimeout(
-          () => target.classList.remove("reservation-highlight"),
-          1800
+        const highlightTimer = window.setTimeout(
+          () => setHighlightReservations(true),
+          0
         );
-        return () => window.clearTimeout(timer);
+        const timer = window.setTimeout(
+          () => setHighlightReservations(false),
+          1800,
+        );
+        return () => {
+          window.clearTimeout(highlightTimer);
+          window.clearTimeout(timer);
+        };
       }
     }
   }, []);
@@ -224,10 +223,17 @@ export default function AccountPage() {
           </div>
         </section>
 
-        <section
+        <motion.section
           id="reservations"
-          ref={reservationsRef}
-          className="mx-auto mt-10 max-w-3xl scroll-mt-24 rounded-[28px] bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)] transition-shadow duration-300 sm:p-8"
+          className="mx-auto mt-10 max-w-3xl scroll-mt-24 rounded-[28px] bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)] sm:p-8"
+          animate={
+            highlightReservations
+              ? {
+                  boxShadow: "0 0 0 2px rgba(234, 106, 54, 0.35)",
+                }
+              : { boxShadow: "0 14px 30px rgba(15, 23, 42, 0.08)" }
+          }
+          transition={{ duration: 0.35 }}
         >
           <div className="flex items-center justify-end">
             <h2 className="text-base font-semibold text-slate-900 sm:text-lg">
@@ -271,13 +277,14 @@ export default function AccountPage() {
               </div>
             ))}
           </div>
-        </section>
+        </motion.section>
 
         <section className="mx-auto mt-10 max-w-3xl rounded-[28px] bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)] sm:p-8">
           <div className="w-full">
             <h2
-              className="w-full text-base font-semibold text-slate-900 sm:text-lg"
-              style={{ textAlign: lang === "ar" ? "right" : "left" }}
+              className={`w-full text-base font-semibold text-slate-900 sm:text-lg ${
+                lang === "ar" ? "text-right" : "text-left"
+              }`}
             >
               {t("settings")}
             </h2>
@@ -337,19 +344,38 @@ export default function AccountPage() {
                     )}
                     {item.chevron && (
                       <span
-                        className="text-lg font-semibold text-slate-400 sm:text-xl"
+                        className="text-xl font-semibold text-slate-400 sm:text-2xl"
                         aria-hidden="true"
                       >
-                        ›
+                        ‹
                       </span>
                     )}
                   </div>
                 </>
               );
 
+              if (item.label === "language") {
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={toggleLang}
+                    className={`${rowClasses} w-full ${
+                      lang === "ar" ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {content}
+                  </button>
+                );
+              }
+
               if (item.href) {
                 return (
-                  <Link key={item.label} href={item.href} className={rowClasses}>
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={rowClasses}
+                  >
                     {content}
                   </Link>
                 );
@@ -378,7 +404,7 @@ export default function AccountPage() {
                 className="follow-icon flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-500 shadow-[0_10px_18px_rgba(15,23,42,0.08)]"
                 aria-label={item.label}
               >
-                <item.Icon className="h-6 w-6" aria-hidden="true" />
+                {item.icon}
               </a>
             ))}
           </div>
@@ -387,4 +413,3 @@ export default function AccountPage() {
     </div>
   );
 }
-
