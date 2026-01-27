@@ -46,7 +46,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
   }, [lang]);
 
-  const value = useMemo(
+  const value = useMemo<LanguageContextValue>(
     () => ({
       lang,
       dir: lang === "ar" ? "rtl" : "ltr",
