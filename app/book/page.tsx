@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Cairo } from "next/font/google";
 import type { TranslationKey } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
@@ -78,9 +78,18 @@ const tableFloors: TableFloor[] = [
 
 export default function BookPage() {
   const { dir, lang, t, toggleLang } = useLanguage();
+  const searchParams = useSearchParams();
+  const view = searchParams.get("view");
+  const from = searchParams.get("from");
   const [activeView, setActiveView] = useState<"availability" | "booking">(
     "availability"
   );
+  const [tableFloorsState, setTableFloorsState] =
+    useState<TableFloor[]>(tableFloors);
+  const [selectedTable, setSelectedTable] = useState<{
+    floorId: string;
+    tableId: number;
+  } | null>(null);
   const [guestCount, setGuestCount] = useState(2);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
@@ -95,7 +104,50 @@ export default function BookPage() {
     selectedDate.trim().length > 0 &&
     selectedTime.trim().length > 0 &&
     guestName.trim().length > 0 &&
-    phoneNumber.trim().length > 0;
+    phoneNumber.trim().length > 0 &&
+    !!selectedTable;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleHash = () => {
+      const hash = window.location.hash.replace("#", "");
+      if (hash === "availability" || hash === "tables") {
+        setActiveView("availability");
+        window.setTimeout(() => {
+          document
+            .getElementById("availability")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 0);
+        return;
+      }
+
+      if (hash === "booking" || hash === "booking-form") {
+        setActiveView("booking");
+        window.setTimeout(() => {
+          document
+            .getElementById("booking-form")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 0);
+        return;
+      }
+
+      if (view === "availability" || from === "table") {
+        setActiveView("availability");
+        return;
+      }
+
+      if (view === "booking") {
+        setActiveView("booking");
+      }
+    };
+
+    handleHash();
+    window.addEventListener("hashchange", handleHash);
+    return () => window.removeEventListener("hashchange", handleHash);
+  }, [from, view]);
 
   useEffect(() => {
     if (!toast) {
@@ -112,7 +164,7 @@ export default function BookPage() {
     }
 
     const timer = window.setTimeout(() => {
-      router.push("/account#reservations");
+      router.push("/menu?from=table");
     }, 1800);
 
     return () => window.clearTimeout(timer);
@@ -123,6 +175,25 @@ export default function BookPage() {
       return;
     }
 
+    if (selectedTable) {
+      setTableFloorsState((prev) =>
+        prev.map((floor) => {
+          if (floor.id !== selectedTable.floorId) {
+            return floor;
+          }
+
+          return {
+            ...floor,
+            tables: floor.tables.map((table) =>
+              table.id === selectedTable.tableId
+                ? { ...table, status: "reserved" }
+                : table
+            ),
+          };
+        })
+      );
+    }
+
     setShowConfirm(true);
     setSelectedDate("");
     setSelectedTime("");
@@ -130,6 +201,7 @@ export default function BookPage() {
     setPhoneNumber("");
     setNotes("");
     setGuestCount(2);
+    setSelectedTable(null);
   };
 
   const statusStyles: Record<
@@ -216,7 +288,7 @@ export default function BookPage() {
         </div>
 
         {activeView === "availability" ? (
-          <section className="mt-8 space-y-6">
+          <section id="availability" className="mt-8 space-y-6">
             <div className="rounded-3xl bg-white px-6 py-4 shadow-[0_12px_24px_rgba(15,23,42,0.08)]">
               <div className="flex flex-wrap items-center justify-between gap-4 text-sm font-semibold text-slate-500">
                 <span>{t("tableStatus")}</span>
@@ -237,7 +309,7 @@ export default function BookPage() {
               </div>
             </div>
 
-            {tableFloors.map((floor) => (
+            {tableFloorsState.map((floor) => (
               <section
                 key={floor.id}
                 className="rounded-3xl bg-white p-5 shadow-[0_12px_24px_rgba(15,23,42,0.08)] sm:p-6"
@@ -320,7 +392,10 @@ export default function BookPage() {
               ))}
             </section>
 
-            <section className="mt-10 rounded-3xl bg-white p-7 shadow-[0_12px_24px_rgba(15,23,42,0.08)]">
+            <section
+              id="booking-form"
+              className="mt-10 rounded-3xl bg-white p-7 shadow-[0_12px_24px_rgba(15,23,42,0.08)]"
+            >
               <div className="flex items-center justify-end">
                 <h2 className="text-base font-semibold text-slate-800">
                   {t("reservationDetails")}
@@ -328,6 +403,61 @@ export default function BookPage() {
               </div>
 
               <div className="mt-6 space-y-5">
+                <div>
+                  <span className="mb-2 block text-sm font-semibold text-slate-700">
+                    {t("selectTable")}
+                  </span>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {tableFloorsState
+                      .flatMap((floor) =>
+                        floor.tables
+                          .filter((table) => table.status === "available")
+                          .map((table) => ({
+                            floorId: floor.id,
+                            tableId: table.id,
+                          }))
+                      )
+                      .map((table) => {
+                        const isSelected =
+                          selectedTable?.floorId === table.floorId &&
+                          selectedTable?.tableId === table.tableId;
+                        return (
+                          <label
+                            key={`${table.floorId}-${table.tableId}`}
+                            className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                              isSelected
+                                ? "border-orange-400 bg-orange-50 text-orange-600"
+                                : "border-slate-200 text-slate-600"
+                            }`}
+                          >
+                            <span>
+                              {t("table")} {table.tableId}
+                            </span>
+                            <input
+                              type="radio"
+                              name="table"
+                              checked={isSelected}
+                              onChange={() =>
+                                setSelectedTable({
+                                  floorId: table.floorId,
+                                  tableId: table.tableId,
+                                })
+                              }
+                              className="h-4 w-4 accent-orange-500"
+                            />
+                          </label>
+                        );
+                      })}
+                  </div>
+                  {tableFloorsState.every((floor) =>
+                    floor.tables.every((table) => table.status !== "available")
+                  ) && (
+                    <p className="mt-3 text-sm text-slate-500">
+                      {t("noAvailableTables")}
+                    </p>
+                  )}
+                </div>
+
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-slate-700">
                     {t("selectDate")}

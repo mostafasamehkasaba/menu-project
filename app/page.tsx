@@ -11,6 +11,8 @@ import {
   FaXTwitter,
 } from "react-icons/fa6";
 import { useLanguage } from "./components/language-provider";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -27,6 +29,10 @@ const socials: { label: string; href: string; Icon: IconType }[] = [
 
 export default function Home() {
   const { dir, t } = useLanguage();
+  const router = useRouter();
+  const [showTablePicker, setShowTablePicker] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  const availableTables = [1, 3, 5, 6, 8, 10, 11, 12];
   return (
     <div
       className={`${cairo.className} relative min-h-screen overflow-hidden bg-[radial-gradient(900px_circle_at_8%_-10%,#fff0e6,transparent_55%),radial-gradient(900px_circle_at_95%_25%,#ffe7d9,transparent_55%),linear-gradient(180deg,#fff7f0_0%,#fffaf6_45%,#ffffff_100%)] text-slate-900`}
@@ -80,7 +86,11 @@ export default function Home() {
             <span className="text-lg">🍴</span>
             {t("viewMenuOnly")}
           </Link>
-          <button className="flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4 text-base font-semibold text-white shadow-[0_18px_35px_rgba(234,106,54,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_40px_rgba(234,106,54,0.4)]">
+          <button
+            type="button"
+            onClick={() => setShowTablePicker(true)}
+            className="flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4 text-base font-semibold text-white shadow-[0_18px_35px_rgba(234,106,54,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_40px_rgba(234,106,54,0.4)]"
+          >
             <span className="text-lg">🍽️</span>
             {t("orderFromTable")}
           </button>
@@ -116,6 +126,74 @@ export default function Home() {
           💬
         </span>
       </button>
+
+      {showTablePicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-[36px] bg-white px-6 py-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
+            <h3 className="text-xl font-semibold text-slate-900">
+              {t("selectTable")}
+            </h3>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {availableTables.map((table) => {
+                const isSelected = selectedTable === table;
+                return (
+                  <label
+                    key={table}
+                    className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                      isSelected
+                        ? "border-orange-400 bg-orange-50 text-orange-600"
+                        : "border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    <span>
+                      {t("table")} {table}
+                    </span>
+                    <input
+                      type="radio"
+                      name="table"
+                      checked={isSelected}
+                      onChange={() => setSelectedTable(table)}
+                      className="h-4 w-4 accent-orange-500"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled={!selectedTable}
+                onClick={() => {
+                  if (!selectedTable) {
+                    return;
+                  }
+                  setShowTablePicker(false);
+                  setSelectedTable(null);
+                  router.push(`/menu?from=table&table=${selectedTable}`);
+                }}
+                className={`rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(234,106,54,0.25)] ${
+                  selectedTable
+                    ? "bg-orange-500"
+                    : "cursor-not-allowed bg-orange-200"
+                }`}
+              >
+                {t("confirm")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTablePicker(false);
+                  setSelectedTable(null);
+                }}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600"
+              >
+                {t("cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

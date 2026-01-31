@@ -6,6 +6,7 @@ import { Cairo } from "next/font/google";
 import { categories, menuItems, todayOffers } from "../lib/menu-data";
 import { formatCurrency, getLocalizedText } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
+import { useSearchParams } from "next/navigation";
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
@@ -14,6 +15,17 @@ const cairo = Cairo({
 export default function MenuPage() {
   const [activeId, setActiveId] = useState("all");
   const { dir, lang, t, toggleLang } = useLanguage();
+  const searchParams = useSearchParams();
+  const showCallWaiter = searchParams.get("from") === "table";
+  const [showCallWaiterModal, setShowCallWaiterModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState<string | null>(null);
+
+  const callReasons = [
+    { id: "needBill", icon: "🧾" },
+    { id: "needHelp", icon: "❓" },
+    { id: "additionalOrder", icon: "➕" },
+    { id: "orderIssue", icon: "⚠️" },
+  ] as const;
 
   const filteredItems = useMemo(() => {
     if (activeId === "all") {
@@ -183,6 +195,87 @@ export default function MenuPage() {
           ًں’¬
         </span>
       </button>
+
+      {showCallWaiter && (
+        <div className="fixed bottom-20 left-6 z-40">
+          <div className="absolute -bottom-3 left-1/2 h-7 w-7 -translate-x-1/2 rounded-full bg-orange-500" />
+          <button
+            type="button"
+            onClick={() => setShowCallWaiterModal(true)}
+            className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white text-orange-500 shadow-[0_12px_24px_rgba(15,23,42,0.18)]"
+            aria-label={t("callWaiterTitle")}
+          >
+            ♥
+          </button>
+        </div>
+      )}
+
+      {showCallWaiterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-[28px] bg-white px-6 py-7 shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCallWaiterModal(false);
+                  setSelectedReason(null);
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                aria-label={t("cancel")}
+              >
+                ✕
+              </button>
+              <h3 className="text-lg font-semibold text-slate-900">
+                {t("callWaiterTitle")}
+              </h3>
+              <div className="h-10 w-10" aria-hidden="true" />
+            </div>
+
+            <p className="mt-4 text-center text-sm text-slate-500">
+              {t("selectReason")}
+            </p>
+
+            <div className="mt-4 space-y-3">
+              {callReasons.map((reason) => {
+                const isSelected = selectedReason === reason.id;
+                return (
+                  <button
+                    key={reason.id}
+                    type="button"
+                    onClick={() => setSelectedReason(reason.id)}
+                    className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                      isSelected
+                        ? "border-orange-400 bg-orange-50 text-orange-600"
+                        : "border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    <span>{t(reason.id)}</span>
+                    <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-base">
+                      {reason.icon}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              disabled={!selectedReason}
+              onClick={() => {
+                setShowCallWaiterModal(false);
+                setSelectedReason(null);
+              }}
+              className={`mt-6 w-full rounded-2xl py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(234,106,54,0.25)] ${
+                selectedReason
+                  ? "bg-orange-400"
+                  : "cursor-not-allowed bg-orange-200"
+              }`}
+            >
+              {t("send")}
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

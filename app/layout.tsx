@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import BottomNav from "./components/bottom-nav";
+import BottomNavGuard from "./components/bottom-nav-guard";
 import { LanguageProvider } from "./components/language-provider";
 import PageMotion from "./components/page-motion";
 
@@ -32,7 +32,7 @@ export default function RootLayout({
       >
         <LanguageProvider>
           <PageMotion>{children}</PageMotion>
-          <BottomNav />
+          <BottomNavGuard />
         </LanguageProvider>
         <script
           dangerouslySetInnerHTML={{
