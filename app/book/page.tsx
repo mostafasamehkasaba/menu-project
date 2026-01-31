@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -91,15 +93,19 @@ export default function BookPage() {
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
   const from = searchParams.get("from");
+
   const [activeView, setActiveView] = useState<"availability" | "booking">(
     "availability",
   );
+
   const [tableFloorsState, setTableFloorsState] =
     useState<TableFloor[]>(tableFloors);
+
   const [selectedTable, setSelectedTable] = useState<{
     floorId: string;
     tableId: number;
   } | null>(null);
+
   const [guestCount, setGuestCount] = useState(2);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
@@ -108,6 +114,14 @@ export default function BookPage() {
   const [notes, setNotes] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  // ✅ NEW: snapshot confirmed booking before resetting fields
+  const [confirmed, setConfirmed] = useState<{
+    date: string;
+    time: string;
+    guests: number;
+  } | null>(null);
+
   const router = useRouter();
 
   const isFormComplete =
@@ -118,12 +132,11 @@ export default function BookPage() {
     !!selectedTable;
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    if (typeof window === "undefined") return;
 
     const handleHash = () => {
       const hash = window.location.hash.replace("#", "");
+
       if (hash === "availability" || hash === "tables") {
         setActiveView("availability");
         window.setTimeout(() => {
@@ -160,18 +173,13 @@ export default function BookPage() {
   }, [from, view]);
 
   useEffect(() => {
-    if (!toast) {
-      return;
-    }
-
+    if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 2500);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
   useEffect(() => {
-    if (!showConfirm) {
-      return;
-    }
+    if (!showConfirm) return;
 
     const timer = window.setTimeout(() => {
       router.push("/menu?from=table");
@@ -181,16 +189,19 @@ export default function BookPage() {
   }, [showConfirm, router]);
 
   const handleConfirm = () => {
-    if (!isFormComplete) {
-      return;
-    }
+    if (!isFormComplete) return;
+
+    // ✅ NEW: take snapshot BEFORE resetting
+    setConfirmed({
+      date: selectedDate,
+      time: selectedTime,
+      guests: guestCount,
+    });
 
     if (selectedTable) {
       setTableFloorsState((prev) =>
         prev.map((floor) => {
-          if (floor.id !== selectedTable.floorId) {
-            return floor;
-          }
+          if (floor.id !== selectedTable.floorId) return floor;
 
           return {
             ...floor,
@@ -205,6 +216,8 @@ export default function BookPage() {
     }
 
     setShowConfirm(true);
+
+    // reset form
     setSelectedDate("");
     setSelectedTime("");
     setGuestName("");
@@ -254,6 +267,7 @@ export default function BookPage() {
           >
             {lang === "ar" ? "EN" : "AR"}
           </button>
+
           <div className="text-center">
             <h1 className="text-xl font-semibold sm:text-2xl">
               {t("bookTable")}
@@ -262,6 +276,7 @@ export default function BookPage() {
               {t("reserveYourTableNow")}
             </p>
           </div>
+
           <Link
             href="/menu"
             className="grid h-10 w-10 place-items-center rounded-full bg-white/20 text-lg"
@@ -284,6 +299,7 @@ export default function BookPage() {
           >
             ▦ {t("tableAvailability")}
           </button>
+
           <button
             type="button"
             onClick={() => setActiveView("booking")}
@@ -307,9 +323,7 @@ export default function BookPage() {
                     (status) => (
                       <div key={status} className="flex items-center gap-2">
                         <span
-                          className={`h-2 w-2 rounded-full ${
-                            statusStyles[status].dot
-                          }`}
+                          className={`h-2 w-2 rounded-full ${statusStyles[status].dot}`}
                         />
                         <span>{t(status)}</span>
                       </div>
@@ -330,6 +344,7 @@ export default function BookPage() {
                   </h3>
                   <span className="text-sm text-orange-500">{floor.icon}</span>
                 </div>
+
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   {floor.tables.map((table) => {
                     const style = statusStyles[table.status];
@@ -361,6 +376,7 @@ export default function BookPage() {
                               </p>
                             </div>
                           </div>
+
                           <div
                             className={
                               dir === "rtl" ? "text-end" : "text-start"
@@ -417,6 +433,7 @@ export default function BookPage() {
                   <span className="mb-2 block text-sm font-semibold text-slate-700">
                     {t("selectTable")}
                   </span>
+
                   <div className="grid gap-3 sm:grid-cols-3">
                     {tableFloorsState
                       .flatMap((floor) =>
@@ -431,6 +448,7 @@ export default function BookPage() {
                         const isSelected =
                           selectedTable?.floorId === table.floorId &&
                           selectedTable?.tableId === table.tableId;
+
                         return (
                           <label
                             key={`${table.floorId}-${table.tableId}`}
@@ -459,6 +477,7 @@ export default function BookPage() {
                         );
                       })}
                   </div>
+
                   {tableFloorsState.every((floor) =>
                     floor.tables.every((table) => table.status !== "available"),
                   ) && (
@@ -587,7 +606,7 @@ export default function BookPage() {
                 {t("reservationPolicy")}
               </div>
               <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                {/* {t("needHelp")} */}
+                {t("needHelp")}
               </div>
             </section>
           </>
@@ -606,9 +625,11 @@ export default function BookPage() {
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600">
               ✓
             </div>
+
             <h3 className="mt-5 text-xl font-semibold text-slate-900">
               {t("bookingConfirmed")}
             </h3>
+
             <p className="mt-2 text-sm text-slate-500">
               {t("reservationSuccessMessage")}
             </p>
@@ -616,15 +637,15 @@ export default function BookPage() {
             <div className="mt-6 rounded-2xl bg-slate-50 px-5 py-4 text-sm text-slate-700">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">{t("dateLabel")}:</span>
-                <span>{selectedDate || "2026-01-24"}</span>
+                <span>{confirmed?.date ?? ""}</span>
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-slate-400">{t("timeLabel")}:</span>
-                <span>{selectedTime || "15:00"}</span>
+                <span>{confirmed?.time ?? ""}</span>
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-slate-400">{t("guestsLabel")}:</span>
-                <span>{guestCount}</span>
+                <span>{confirmed?.guests ?? guestCount}</span>
               </div>
             </div>
 
