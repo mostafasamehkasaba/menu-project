@@ -7,6 +7,7 @@ import { categories, menuItems, todayOffers } from "../lib/menu-data";
 import { formatCurrency, getLocalizedText } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
 import { useSearchParams } from "next/navigation";
+import ChatbotSection from "../components/chatbot-section";
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
@@ -18,6 +19,7 @@ function MenuPageContent() {
   const searchParams = useSearchParams();
   const showCallWaiter = searchParams.get("from") === "table";
   const [showCallWaiterModal, setShowCallWaiterModal] = useState(false);
+  const [showChatbot, setShowChatbot] = useState(false);
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
 
   const callReasons = [
@@ -189,12 +191,32 @@ function MenuPageContent() {
         </section>
       </div>
 
-      <button className="fixed bottom-20 right-6 flex items-center gap-2 rounded-full bg-black px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.2)]">
+      <button
+        type="button"
+        onClick={() => setShowChatbot(true)}
+        className="fixed bottom-20 right-6 flex items-center gap-2 rounded-full bg-black px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.2)]"
+      >
         {t("talkWithUs")}
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-white">
           ًں’¬
         </span>
       </button>
+
+      {showChatbot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="relative w-full max-w-4xl">
+            <button
+              type="button"
+              onClick={() => setShowChatbot(false)}
+              className="absolute right-3 top-3 z-10 rounded-full bg-white p-2 text-lg text-slate-700 shadow-lg"
+              aria-label={t("cancel")}
+            >
+              ×
+            </button>
+            <ChatbotSection />
+          </div>
+        </div>
+      )}
 
       {showCallWaiter && (
         <div className="fixed bottom-20 left-6 z-40">

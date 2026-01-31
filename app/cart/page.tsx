@@ -164,7 +164,7 @@ export default function CartPage() {
         </section>
 
         <Link
-          href="/checkout"
+          href={`/checkout?orderType=${orderType}`}
           className="mt-8 flex w-full items-center justify-center rounded-2xl bg-orange-500 py-4 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(234,106,54,0.35)]"
         >
           {t("proceedToCheckout")} • {formatCurrency(total, lang, 2)}

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
+import { useSearchParams } from "next/navigation";
 import { getCartItems, type CartItem } from "../lib/cart";
 import { menuItems } from "../lib/menu-data";
 import { formatCurrency, getLocalizedText } from "../lib/i18n";
@@ -25,10 +26,15 @@ type SuccessInfo = {
   orderTime: string;
 };
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const { dir, lang, t } = useLanguage();
+  const searchParams = useSearchParams();
+  const orderTypeParam = searchParams.get("orderType");
+  const hasTableOption = orderTypeParam !== "takeaway";
   const [items] = useState<CartItem[]>(() => getCartItems());
-  const [serviceType, setServiceType] = useState<ServiceType>("table");
+  const [serviceType, setServiceType] = useState<ServiceType>(
+    hasTableOption ? "table" : "counter"
+  );
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [walletProvider, setWalletProvider] =
     useState<WalletProvider>("vodafone");
@@ -61,7 +67,6 @@ export default function CheckoutPage() {
     if (items.length === 0) {
       return;
     }
-
     if (paymentMethod === "card") {
       const nextErrors: {
         cardNumber?: string;
@@ -126,7 +131,9 @@ export default function CheckoutPage() {
           </h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {[
-              { id: "table", label: t("serveToTable"), icon: "♡" },
+              ...(hasTableOption
+                ? [{ id: "table", label: t("serveToTable"), icon: "♡" }]
+                : []),
               { id: "counter", label: t("pickupFromCounter"), icon: "🧾" },
             ].map((option) => (
               <button
@@ -460,5 +467,13 @@ export default function CheckoutPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutContent />
+    </Suspense>
   );
 }
