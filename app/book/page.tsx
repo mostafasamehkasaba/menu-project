@@ -19,8 +19,18 @@ const stats: {
   icon: string;
 }[] = [
   { label: "avgWaitTime", value: "15m", color: "text-blue-600", icon: "🕑" },
-  { label: "availableTables", value: "8", color: "text-emerald-600", icon: "🪑" },
-  { label: "todaysBookings", value: "24", color: "text-orange-600", icon: "📅" },
+  {
+    label: "availableTables",
+    value: "8",
+    color: "text-emerald-600",
+    icon: "🪑",
+  },
+  {
+    label: "todaysBookings",
+    value: "24",
+    color: "text-orange-600",
+    icon: "📅",
+  },
 ];
 
 const timeSlots = [
@@ -82,7 +92,7 @@ export default function BookPage() {
   const view = searchParams.get("view");
   const from = searchParams.get("from");
   const [activeView, setActiveView] = useState<"availability" | "booking">(
-    "availability"
+    "availability",
   );
   const [tableFloorsState, setTableFloorsState] =
     useState<TableFloor[]>(tableFloors);
@@ -187,10 +197,10 @@ export default function BookPage() {
             tables: floor.tables.map((table) =>
               table.id === selectedTable.tableId
                 ? { ...table, status: "reserved" }
-                : table
+                : table,
             ),
           };
-        })
+        }),
       );
     }
 
@@ -303,7 +313,7 @@ export default function BookPage() {
                         />
                         <span>{t(status)}</span>
                       </div>
-                    )
+                    ),
                   )}
                 </div>
               </div>
@@ -415,7 +425,7 @@ export default function BookPage() {
                           .map((table) => ({
                             floorId: floor.id,
                             tableId: table.id,
-                          }))
+                          })),
                       )
                       .map((table) => {
                         const isSelected =
@@ -450,7 +460,7 @@ export default function BookPage() {
                       })}
                   </div>
                   {tableFloorsState.every((floor) =>
-                    floor.tables.every((table) => table.status !== "available")
+                    floor.tables.every((table) => table.status !== "available"),
                   ) && (
                     <p className="mt-3 text-sm text-slate-500">
                       {t("noAvailableTables")}
@@ -506,7 +516,9 @@ export default function BookPage() {
                     >
                       -
                     </button>
-                    <span className="text-base font-semibold">{guestCount}</span>
+                    <span className="text-base font-semibold">
+                      {guestCount}
+                    </span>
                     <button
                       type="button"
                       onClick={() => setGuestCount((prev) => prev + 1)}
@@ -575,7 +587,7 @@ export default function BookPage() {
                 {t("reservationPolicy")}
               </div>
               <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                {t("needHelp")}
+                {/* {t("needHelp")} */}
               </div>
             </section>
           </>
