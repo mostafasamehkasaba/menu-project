@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
 import { categories, menuItems, todayOffers } from "../lib/menu-data";
 import { formatCurrency, getLocalizedText } from "../lib/i18n";
@@ -12,7 +12,7 @@ const cairo = Cairo({
   weight: ["400", "600", "700"],
 });
 
-export default function MenuPage() {
+function MenuPageContent() {
   const [activeId, setActiveId] = useState("all");
   const { dir, lang, t, toggleLang } = useLanguage();
   const searchParams = useSearchParams();
@@ -278,6 +278,14 @@ export default function MenuPage() {
       )}
 
     </div>
+  );
+}
+
+export default function MenuPage() {
+  return (
+    <Suspense fallback={null}>
+      <MenuPageContent />
+    </Suspense>
   );
 }
 

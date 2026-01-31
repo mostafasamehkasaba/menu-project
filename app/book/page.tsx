@@ -2,8 +2,8 @@
 
 export const dynamic = "force-dynamic";
 
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Cairo } from "next/font/google";
 import type { TranslationKey } from "../lib/i18n";
@@ -88,7 +88,7 @@ const tableFloors: TableFloor[] = [
   },
 ];
 
-export default function BookPage() {
+function BookPageContent() {
   const { dir, lang, t, toggleLang } = useLanguage();
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
@@ -656,5 +656,13 @@ export default function BookPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BookPage() {
+  return (
+    <Suspense fallback={null}>
+      <BookPageContent />
+    </Suspense>
   );
 }
