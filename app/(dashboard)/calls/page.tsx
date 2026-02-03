@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   FiAlertTriangle,
   FiChevronDown,
@@ -26,7 +26,7 @@ type Call = {
 
 const callTypeMeta: Record<
   CallType,
-  { label: string; icon: JSX.Element; tone: string }
+  { label: string; icon: ReactNode; tone: string }
 > = {
   billing: {
     label: "عايز حساب",
