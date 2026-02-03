@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Cairo } from "next/font/google";
 import type { TranslationKey } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
+import { tableFloors, type TableFloor, type TableStatus } from "../lib/table-floors";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -20,18 +21,18 @@ const stats: {
   color: string;
   icon: string;
 }[] = [
-  { label: "avgWaitTime", value: "15m", color: "text-blue-600", icon: "🕑" },
+  { label: "avgWaitTime", value: "15m", color: "text-blue-600", icon: "ًں•‘" },
   {
     label: "availableTables",
     value: "8",
     color: "text-emerald-600",
-    icon: "🪑",
+    icon: "ًںھ‘",
   },
   {
     label: "todaysBookings",
     value: "24",
     color: "text-orange-600",
-    icon: "📅",
+    icon: "ًں“…",
   },
 ];
 
@@ -50,43 +51,7 @@ const timeSlots = [
   "22:30",
 ];
 
-type TableStatus = "available" | "reserved" | "occupied";
-
-type TableFloor = {
-  id: string;
-  label: TranslationKey;
-  icon: string;
-  tables: { id: number; seats: number; status: TableStatus }[];
-};
-
-const tableFloors: TableFloor[] = [
-  {
-    id: "ground",
-    label: "groundFloor",
-    icon: "⌂",
-    tables: [
-      { id: 1, seats: 2, status: "available" },
-      { id: 2, seats: 2, status: "occupied" },
-      { id: 3, seats: 4, status: "available" },
-      { id: 4, seats: 4, status: "reserved" },
-      { id: 5, seats: 6, status: "available" },
-      { id: 6, seats: 6, status: "available" },
-      { id: 7, seats: 8, status: "occupied" },
-      { id: 8, seats: 4, status: "available" },
-    ],
-  },
-  {
-    id: "first",
-    label: "firstFloor",
-    icon: "⌂",
-    tables: [
-      { id: 9, seats: 2, status: "reserved" },
-      { id: 10, seats: 4, status: "available" },
-      { id: 11, seats: 6, status: "available" },
-      { id: 12, seats: 8, status: "available" },
-    ],
-  },
-];
+// tableFloors now comes from lib/table-floors to share with reservations.
 
 function BookPageContent() {
   const { dir, lang, t, toggleLang } = useLanguage();
@@ -115,7 +80,7 @@ function BookPageContent() {
   const [toast, setToast] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // ✅ NEW: snapshot confirmed booking before resetting fields
+  // âœ… NEW: snapshot confirmed booking before resetting fields
   const [confirmed, setConfirmed] = useState<{
     date: string;
     time: string;
@@ -191,7 +156,7 @@ function BookPageContent() {
   const handleConfirm = () => {
     if (!isFormComplete) return;
 
-    // ✅ NEW: take snapshot BEFORE resetting
+    // âœ… NEW: take snapshot BEFORE resetting
     setConfirmed({
       date: selectedDate,
       time: selectedTime,
@@ -281,7 +246,7 @@ function BookPageContent() {
             href="/menu"
             className="grid h-10 w-10 place-items-center rounded-full bg-white/20 text-lg"
           >
-            →
+            â†’
           </Link>
         </div>
       </section>
@@ -297,7 +262,7 @@ function BookPageContent() {
                 : "bg-white text-slate-700"
             }`}
           >
-            ▦ {t("tableAvailability")}
+            â–¦ {t("tableAvailability")}
           </button>
 
           <button
@@ -309,7 +274,7 @@ function BookPageContent() {
                 : "bg-white text-slate-700"
             }`}
           >
-            🗓 {t("bookingForm")}
+            ًں—“ {t("bookingForm")}
           </button>
         </div>
 
@@ -362,7 +327,7 @@ function BookPageContent() {
                             <div
                               className={`grid h-8 w-8 place-items-center rounded-full bg-white text-xs ${style.text}`}
                             >
-                              👤
+                              ًں‘¤
                             </div>
                             <div
                               className={
@@ -623,7 +588,7 @@ function BookPageContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-[36px] bg-white px-6 py-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600">
-              ✓
+              âœ“
             </div>
 
             <h3 className="mt-5 text-xl font-semibold text-slate-900">
@@ -666,3 +631,5 @@ export default function BookPage() {
     </Suspense>
   );
 }
+
+

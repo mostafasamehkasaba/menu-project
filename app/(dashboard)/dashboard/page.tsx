@@ -1,7 +1,5 @@
 ﻿"use client";
 
-import Link from "next/link";
-import { Cairo } from "next/font/google";
 import {
   Chart as ChartJS,
   ArcElement,
@@ -16,31 +14,12 @@ import {
 import { Doughnut, Line } from "react-chartjs-2";
 import {
   FiAlertCircle,
-  FiBell,
   FiCalendar,
-  FiCoffee,
-  FiCreditCard,
-  FiGift,
-  FiGlobe,
-  FiGrid,
-  FiLayout,
-  FiPlus,
-  FiSearch,
-  FiSettings,
+  FiBell,
   FiShoppingBag,
-  FiShoppingCart,
-  FiTag,
-  FiUsers,
-  FiBox,
-  FiPhoneCall,
   FiDollarSign,
   FiClipboard,
 } from "react-icons/fi";
-
-const cairo = Cairo({
-  subsets: ["arabic", "latin"],
-  weight: ["400", "600", "700"],
-});
 
 ChartJS.register(
   ArcElement,
@@ -52,20 +31,6 @@ ChartJS.register(
   Legend,
   Filler
 );
-
-const sidebarItems = [
-  { label: "لوحة التحكم", href: "/dashboard", Icon: FiGrid, active: true },
-  { label: "المنتجات", href: "/products", Icon: FiBox },
-  { label: "التصنيفات", href: "/categories", Icon: FiTag },
-  { label: "العروض", href: "/offers", Icon: FiGift },
-  { label: "الطاولات", href: "/tables", Icon: FiLayout },
-  { label: "الطلبات", href: "/orders", Icon: FiShoppingCart },
-  { label: "طلبات النداء", href: "/calls", Icon: FiPhoneCall },
-  { label: "الحجوزات", href: "/reservations", Icon: FiCalendar },
-  { label: "المدفوعات", href: "/payments", Icon: FiCreditCard },
-  { label: "المستخدمون", href: "/users", Icon: FiUsers },
-  { label: "الإعدادات", href: "/settings", Icon: FiSettings },
-];
 
 const statCards = [
   {
@@ -194,54 +159,10 @@ const lineOptions = {
 
 export default function DashboardPage() {
   return (
-    <div
-      className={`${cairo.className} min-h-screen bg-[radial-gradient(circle_at_5%_0%,#f0fdf4,transparent_45%),radial-gradient(circle_at_95%_20%,#eef2ff,transparent_45%),linear-gradient(180deg,#f8fafc_0%,#ffffff_45%,#ffffff_100%)] text-slate-900`}
-    >
-      <div className="grid min-h-screen w-full gap-6 px-6 py-6 lg:grid-cols-[1fr_280px] lg:px-10">
-        <main className="space-y-6">
-          <header className="rounded-3xl border border-slate-200 bg-white/80 px-5 py-4 shadow-sm backdrop-blur">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="order-3 flex items-center gap-3 lg:order-1">
-                <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-white">
-                    أ
-                  </span>
-                  أحمد محمد
-                </div>
-                <button className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 transition hover:border-emerald-200 hover:text-emerald-600">
-                  <FiBell />
-                </button>
-                <button className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 transition hover:border-emerald-200 hover:text-emerald-600">
-                  <FiGlobe />
-                </button>
-                <button className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 transition hover:border-emerald-200 hover:text-emerald-600">
-                  <FiPlus />
-                </button>
-              </div>
-
-              <div className="order-2 flex-1 lg:order-2">
-                <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500">
-                  <FiSearch />
-                  <input
-                    type="text"
-                    placeholder="ابحث عن طاولة..."
-                    className="w-full bg-transparent text-right outline-none"
-                  />
-                </label>
-              </div>
-
-              <div className="order-1 text-right lg:order-3">
-                <p className="text-sm font-semibold text-slate-900">
-                  لوحة التحكم
-                </p>
-                <p className="text-xs text-slate-400">الرئيسية / لوحة التحكم</p>
-              </div>
-            </div>
-          </header>
-
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {statCards.map((card) => (
-              <div
+    <>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {statCards.map((card) => (
+          <div
                 key={card.title}
                 className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm"
               >
@@ -334,16 +255,10 @@ export default function DashboardPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-900">
-                  النشاطات المباشرة
-                </p>
-                <p className="text-xs text-slate-400">
-                  آخر 10 أحداث في النظام
-                </p>
+                <p className="text-sm font-semibold text-slate-900">الأنشطة المباشرة</p>
+                <p className="text-xs text-slate-400">آخر 10 أحداث في النظام</p>
               </div>
-              <button className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
-                عرض الكل
-              </button>
+              <button className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">عرض الكل</button>
             </div>
             <div className="mt-4 space-y-3">
               {activities.map((activity, index) => (
@@ -351,56 +266,20 @@ export default function DashboardPage() {
                   key={activity}
                   className="flex items-center justify-between rounded-2xl bg-emerald-50/60 px-4 py-3 text-sm text-slate-700"
                 >
-                  <span className="rounded-full bg-white px-3 py-1 text-xs text-slate-500">
-                    {activityTimes[index]}
-                  </span>
                   <span className="text-right font-semibold text-slate-700">
                     {activity}
+                  </span>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs text-slate-500">
+                    {activityTimes[index]}
                   </span>
                 </div>
               ))}
             </div>
           </section>
-        </main>
-
-        <aside className="h-fit rounded-3xl border border-slate-200 bg-white px-4 py-6 shadow-sm lg:sticky lg:top-6">
-          <div className="flex items-center justify-between gap-4 text-right">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500 text-white">
-              <FiCoffee />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">
-                مطعم الذواقة
-              </p>
-              <p className="text-xs text-slate-400">لوحة التحكم</p>
-            </div>
-          </div>
-
-          <nav className="mt-6 space-y-2" dir="rtl">
-            {sidebarItems.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-right text-sm font-semibold transition ${
-                  item.active
-                    ? "bg-emerald-500 text-white shadow-sm"
-                    : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
-                }`}
-              >
-                <item.Icon className="text-lg" />
-                <span className="flex-1">{item.label}</span>
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-6 flex items-center justify-between text-xs text-slate-400">
-            <button className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500">
-              ?
-            </button>
-            <span>v1.0.0</span>
-          </div>
-        </aside>
-      </div>
-    </div>
+    </>
   );
 }
+
+
+
+

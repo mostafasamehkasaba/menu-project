@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
 import { usePathname } from "next/navigation";
-import { categories, menuItems } from "../lib/menu-data";
-import { formatCurrency, getLocalizedText } from "../lib/i18n";
-import { useLanguage } from "../components/language-provider";
+import { categories, menuItems } from "../../lib/menu-data";
+import { formatCurrency, getLocalizedText } from "../../lib/i18n";
+import { useLanguage } from "../../components/language-provider";
 import {
   FiBox,
   FiCalendar,

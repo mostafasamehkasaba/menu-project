@@ -18,6 +18,7 @@ export default function BottomNavGuard() {
     "/payments",
     "/users",
     "/settings",
+    "/qr",
   ];
 
   if (adminRoutes.some((route) => pathname.startsWith(route))) {
