@@ -13,7 +13,16 @@ import {
 } from "react-icons/fi";
 
 const categoryOptions = categories.filter((category) => category.id !== "all");
-const defaultCategoryId = categoryOptions[0]?.id ?? "apps";
+const defaultCategoryId = (categoryOptions[0]?.id ?? "apps") as MenuItem["category"];
+
+type ProductForm = {
+  nameAr: string;
+  nameEn: string;
+  price: string;
+  category: MenuItem["category"];
+  tag: "none" | "new" | "hot";
+  image: string;
+};
 
 export default function ProductsPage() {
   const { lang } = useLanguage();
@@ -28,7 +37,7 @@ export default function ProductsPage() {
     id: number;
     name: string;
   } | null>(null);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ProductForm>({
     nameAr: "",
     nameEn: "",
     price: "",
@@ -251,7 +260,10 @@ export default function ProductsPage() {
               <select
                 value={form.category}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, category: event.target.value }))
+                  setForm((prev) => ({
+                    ...prev,
+                    category: event.target.value as MenuItem["category"],
+                  }))
                 }
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
               >
