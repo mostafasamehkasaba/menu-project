@@ -279,7 +279,10 @@ export default function ProductsPage() {
               <select
                 value={form.tag}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, tag: event.target.value }))
+                  setForm((prev) => ({
+                    ...prev,
+                    tag: event.target.value as ProductForm["tag"],
+                  }))
                 }
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
               >
