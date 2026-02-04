@@ -1,6 +1,15 @@
 "use client";
 
-import { FiCalendar, FiChevronDown, FiCreditCard, FiDollarSign, FiFilter, FiGlobe, FiPlus, FiSearch } from "react-icons/fi";
+import { useMemo, useState } from "react";
+import {
+  FiCalendar,
+  FiChevronDown,
+  FiCreditCard,
+  FiDollarSign,
+  FiGlobe,
+  FiPlus,
+  FiSearch,
+} from "react-icons/fi";
 
 const summaryCards = [
   {
@@ -25,6 +34,8 @@ const summaryCards = [
     tone: "bg-rose-50 text-rose-600",
   },
 ];
+
+type PaymentStatus = "نجح" | "فشل";
 
 const payments = [
   {
@@ -81,6 +92,25 @@ const payments = [
 ];
 
 export default function PaymentsPage() {
+  const [statusFilter, setStatusFilter] = useState<"all" | PaymentStatus>(
+    "all"
+  );
+  const [methodFilter, setMethodFilter] = useState<"all" | string>("all");
+
+  const methodOptions = useMemo(() => {
+    return Array.from(new Set(payments.map((payment) => payment.method)));
+  }, []);
+
+  const filteredPayments = useMemo(() => {
+    return payments.filter((payment) => {
+      const matchesStatus =
+        statusFilter === "all" || payment.status === statusFilter;
+      const matchesMethod =
+        methodFilter === "all" || payment.method === methodFilter;
+      return matchesStatus && matchesMethod;
+    });
+  }, [statusFilter, methodFilter]);
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
@@ -104,14 +134,36 @@ export default function PaymentsPage() {
 
       <section className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-            جميع الحالات
-            <FiChevronDown className="text-slate-400" />
-          </button>
-          <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-            جميع الطرق
-            <FiFilter className="text-slate-400" />
-          </button>
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as "all" | PaymentStatus)
+              }
+              className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700"
+            >
+              <option value="all">جميع الحالات</option>
+              <option value="نجح">نجح</option>
+              <option value="فشل">فشل</option>
+            </select>
+            <FiChevronDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          </div>
+
+          <div className="relative">
+            <select
+              value={methodFilter}
+              onChange={(event) => setMethodFilter(event.target.value)}
+              className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700"
+            >
+              <option value="all">جميع الطرق</option>
+              {methodOptions.map((method) => (
+                <option key={method} value={method}>
+                  {method}
+                </option>
+              ))}
+            </select>
+            <FiChevronDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
 
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500">
@@ -157,7 +209,7 @@ export default function PaymentsPage() {
           <div className="text-right">الوقت</div>
         </div>
 
-        {payments.map((payment) => (
+        {filteredPayments.map((payment) => (
           <div
             key={payment.id}
             className="grid grid-cols-[140px_1fr_1fr_1fr_1fr_1fr] items-center border-b border-slate-100 px-5 py-3 text-sm text-slate-700 last:border-b-0"

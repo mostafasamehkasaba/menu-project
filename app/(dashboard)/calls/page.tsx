@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   FiAlertTriangle,
   FiChevronDown,
@@ -99,8 +99,31 @@ const statusPills: Record<CallStatus, { label: string; className: string }> = {
 };
 
 export default function CallsPage() {
-  const [statusFilter, setStatusFilter] = useState("الكل");
-  const [typeFilter, setTypeFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState<"all" | CallStatus>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | CallType>("all");
+
+  const statusOptions: { value: "all" | CallStatus; label: string }[] = [
+    { value: "all", label: "الكل" },
+    { value: "new", label: statusPills.new.label },
+    { value: "handled", label: statusPills.handled.label },
+  ];
+
+  const typeOptions: { value: "all" | CallType; label: string }[] = [
+    { value: "all", label: "الكل" },
+    { value: "billing", label: callTypeMeta.billing.label },
+    { value: "help", label: callTypeMeta.help.label },
+    { value: "extra", label: callTypeMeta.extra.label },
+    { value: "issue", label: callTypeMeta.issue.label },
+  ];
+
+  const filteredCalls = useMemo(() => {
+    return calls.filter((call) => {
+      const matchesStatus =
+        statusFilter === "all" || call.status === statusFilter;
+      const matchesType = typeFilter === "all" || call.type === typeFilter;
+      return matchesStatus && matchesType;
+    });
+  }, [statusFilter, typeFilter]);
 
   return (
     <div className="space-y-6">
@@ -111,14 +134,39 @@ export default function CallsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-            الكل
-            <FiChevronDown className="text-slate-400" />
-          </button>
-          <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-            الكل
-            <FiChevronDown className="text-slate-400" />
-          </button>
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as "all" | CallStatus)
+              }
+              className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700"
+            >
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <FiChevronDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          </div>
+
+          <div className="relative">
+            <select
+              value={typeFilter}
+              onChange={(event) =>
+                setTypeFilter(event.target.value as "all" | CallType)
+              }
+              className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700"
+            >
+              {typeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <FiChevronDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
       </header>
 
@@ -131,7 +179,7 @@ export default function CallsPage() {
           <div className="text-center">الإجراءات</div>
         </div>
 
-        {calls.map((call) => {
+        {filteredCalls.map((call) => {
           const typeMeta = callTypeMeta[call.type];
           const status = statusPills[call.status];
           return (

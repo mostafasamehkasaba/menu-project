@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import {
   FiChevronDown,
@@ -119,6 +119,10 @@ const initialUsers: User[] = [
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>(initialUsers);
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | User["role"]>("all");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -127,6 +131,21 @@ export default function UsersPage() {
     phone: "",
     role: "نادل",
   });
+
+  const roleOptions = useMemo(() => {
+    return Array.from(new Set(users.map((user) => user.role)));
+  }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" ? user.active : !user.active);
+      const matchesRole =
+        roleFilter === "all" || user.role === roleFilter;
+      return matchesStatus && matchesRole;
+    });
+  }, [users, statusFilter, roleFilter]);
 
   const toggleActive = (id: number) => {
     setUsers((prev: User[]) =>
@@ -319,14 +338,40 @@ export default function UsersPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
         <div className="flex flex-wrap items-center gap-3">
-          <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-            جميع الحالات
-            <FiChevronDown className="text-slate-400" />
-          </button>
-          <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-            جميع الأدوار
-            <FiChevronDown className="text-slate-400" />
-          </button>
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(
+                  event.target.value as "all" | "active" | "inactive"
+                )
+              }
+              className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700"
+            >
+              <option value="all">جميع الحالات</option>
+              <option value="active">نشط</option>
+              <option value="inactive">غير نشط</option>
+            </select>
+            <FiChevronDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          </div>
+
+          <div className="relative">
+            <select
+              value={roleFilter}
+              onChange={(event) =>
+                setRoleFilter(event.target.value as "all" | User["role"])
+              }
+              className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700"
+            >
+              <option value="all">جميع الأدوار</option>
+              {roleOptions.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
+            <FiChevronDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
 
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500">
@@ -354,7 +399,7 @@ export default function UsersPage() {
           <div className="text-center">الإجراءات</div>
         </div>
 
-        {users.map((user: User) => (
+        {filteredUsers.map((user: User) => (
           <div
             key={user.id}
             className="grid grid-cols-[1.4fr_1.2fr_1fr_1fr_1fr_0.7fr_0.9fr] items-center border-b border-slate-100 px-5 py-3 text-sm text-slate-700 last:border-b-0"
