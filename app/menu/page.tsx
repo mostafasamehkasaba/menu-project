@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Cairo } from "next/font/google";
 import { categories, menuItems, todayOffers } from "../lib/menu-data";
@@ -21,6 +21,36 @@ function MenuPageContent() {
   const [showCallWaiterModal, setShowCallWaiterModal] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [isRestaurantOpen, setIsRestaurantOpen] = useState(true);
+
+  useEffect(() => {
+    const readStatus = () => {
+      const stored = window.localStorage.getItem("restaurant_open");
+      setIsRestaurantOpen(stored !== "false");
+    };
+
+    readStatus();
+
+    const onStatus = (event: Event) => {
+      const detail = (event as CustomEvent<{ open?: boolean }>).detail;
+      if (typeof detail?.open === "boolean") {
+        setIsRestaurantOpen(detail.open);
+      }
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "restaurant_open") {
+        setIsRestaurantOpen(event.newValue !== "false");
+      }
+    };
+
+    window.addEventListener("app:restaurant-status", onStatus);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("app:restaurant-status", onStatus);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   const callReasons = [
     { id: "needBill", icon: "🧾" },
@@ -35,6 +65,31 @@ function MenuPageContent() {
     }
     return menuItems.filter((item) => item.category === activeId);
   }, [activeId]);
+
+  if (!isRestaurantOpen) {
+    return (
+      <div
+        className={`${cairo.className} min-h-screen bg-[#f7f7f8] text-slate-900`}
+        dir={dir}
+      >
+        <div className="flex min-h-screen items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white px-6 py-10 text-center shadow-[0_16px_30px_rgba(15,23,42,0.12)] sm:px-10">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-rose-50 text-rose-600 text-2xl">
+              !
+            </div>
+            <h2 className="mt-4 text-xl font-semibold text-slate-900">
+              {lang === "ar" ? "المطعم مغلق الآن" : "Restaurant is closed now"}
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">
+              {lang === "ar"
+                ? "يرجى المحاولة لاحقاً."
+                : "Please try again later."}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -2,37 +2,76 @@
 
 import Link from "next/link";
 import { Cairo } from "next/font/google";
-import type { IconType } from "react-icons";
-import {
-  FaFacebookF,
-  FaInstagram,
-  FaTiktok,
-  FaWhatsapp,
-  FaXTwitter,
-} from "react-icons/fa6";
 import { useLanguage } from "./components/language-provider";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
 });
 
-const socials: { label: string; href: string; Icon: IconType }[] = [
-  { label: "TikTok", href: "#", Icon: FaTiktok },
-  { label: "WhatsApp", href: "#", Icon: FaWhatsapp },
-  { label: "X", href: "#", Icon: FaXTwitter },
-  { label: "Instagram", href: "#", Icon: FaInstagram },
-  { label: "Facebook", href: "#", Icon: FaFacebookF },
-];
-
 export default function Home() {
-  const { dir, t } = useLanguage();
+  const { dir, lang, t } = useLanguage();
   const router = useRouter();
   const [showTablePicker, setShowTablePicker] = useState(false);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  const [isRestaurantOpen, setIsRestaurantOpen] = useState(true);
   const availableTables = [1, 3, 5, 6, 8, 10, 11, 12];
+
+  useEffect(() => {
+    const readStatus = () => {
+      const stored = window.localStorage.getItem("restaurant_open");
+      setIsRestaurantOpen(stored !== "false");
+    };
+
+    readStatus();
+
+    const onStatus = (event: Event) => {
+      const detail = (event as CustomEvent<{ open?: boolean }>).detail;
+      if (typeof detail?.open === "boolean") {
+        setIsRestaurantOpen(detail.open);
+      }
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "restaurant_open") {
+        setIsRestaurantOpen(event.newValue !== "false");
+      }
+    };
+
+    window.addEventListener("app:restaurant-status", onStatus);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("app:restaurant-status", onStatus);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  if (!isRestaurantOpen) {
+    return (
+      <div
+        className={`${cairo.className} min-h-screen bg-[#f7f7f8] text-slate-900`}
+        dir={dir}
+      >
+        <div className="flex min-h-screen items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white px-6 py-10 text-center shadow-[0_16px_30px_rgba(15,23,42,0.12)] sm:px-10">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-rose-50 text-rose-600 text-2xl">
+              !
+            </div>
+            <h2 className="mt-4 text-xl font-semibold text-slate-900">
+              {lang === "ar" ? "المطعم مغلق الآن" : "Restaurant is closed now"}
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">
+              {lang === "ar"
+                ? "يرجى المحاولة لاحقاً."
+                : "Please try again later."}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className={`${cairo.className} relative min-h-screen overflow-hidden bg-[radial-gradient(900px_circle_at_8%_-10%,#fff0e6,transparent_55%),radial-gradient(900px_circle_at_95%_25%,#ffe7d9,transparent_55%),linear-gradient(180deg,#fff7f0_0%,#fffaf6_45%,#ffffff_100%)] text-slate-900`}
@@ -96,37 +135,6 @@ export default function Home() {
           </button>
         </div>
       </main>
-
-      <section className="relative z-10 border-t border-orange-100 bg-white/70 px-6 py-10 backdrop-blur sm:px-10">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-4">
-          <p className="text-sm font-semibold text-slate-500">
-            {t("followUs")}
-          </p>
-          <div className="flex items-center gap-3">
-            {socials.map((social) => (
-              <a
-                key={social.label}
-                href={social.href}
-                className="follow-icon flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-500 shadow-[0_10px_18px_rgba(148,163,184,0.2)] ring-1 ring-slate-100"
-                aria-label={social.label}
-              >
-                <social.Icon className="h-6 w-6" aria-hidden="true" />
-              </a>
-            ))}
-          </div>
-          <p className="text-xs text-slate-400">
-            {t("allRightsReserved")}
-          </p>
-        </div>
-      </section>
-
-      <button className="fixed bottom-6 right-6 flex items-center gap-2 rounded-full bg-black px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.2)]">
-        {t("talkWithUs")}
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-white">
-          💬
-        </span>
-      </button>
-
       {showTablePicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-[36px] bg-white px-6 py-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.3)]">

@@ -134,13 +134,13 @@ export default function CallsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <select
               value={statusFilter}
               onChange={(event) =>
                 setStatusFilter(event.target.value as "all" | CallStatus)
               }
-              className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700"
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700 sm:w-auto"
             >
               {statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -151,13 +151,13 @@ export default function CallsPage() {
             <FiChevronDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           </div>
 
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <select
               value={typeFilter}
               onChange={(event) =>
                 setTypeFilter(event.target.value as "all" | CallType)
               }
-              className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700"
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700 sm:w-auto"
             >
               {typeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -170,8 +170,9 @@ export default function CallsPage() {
         </div>
       </header>
 
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[140px_1.2fr_170px_150px_1.2fr] border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-600">
+      <section className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="min-w-[760px]">
+          <div className="grid grid-cols-[140px_1.2fr_170px_150px_1.2fr] border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-600">
           <div className="text-center">رقم الطاولة</div>
           <div className="text-center">نوع الطلب</div>
           <div className="text-center">الوقت</div>
@@ -179,7 +180,7 @@ export default function CallsPage() {
           <div className="text-center">الإجراءات</div>
         </div>
 
-        {filteredCalls.map((call) => {
+          {filteredCalls.map((call) => {
           const typeMeta = callTypeMeta[call.type];
           const status = statusPills[call.status];
           return (
@@ -231,7 +232,8 @@ export default function CallsPage() {
 
             </div>
           );
-        })}
+          })}
+        </div>
       </section>
     </div>
   );

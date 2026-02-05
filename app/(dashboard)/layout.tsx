@@ -16,7 +16,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     <div
       className={`${cairo.className} min-h-screen bg-slate-50 text-slate-900`}
     >
-      <div className="grid min-h-screen w-full gap-6 px-6 py-6 lg:grid-cols-[280px_1fr] lg:px-10">
+      <div className="grid min-h-screen w-full gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:grid-cols-[280px_1fr] lg:px-10">
         <main className="space-y-6 lg:order-2">
           <DashboardNavbar />
           {children}

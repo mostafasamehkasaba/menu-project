@@ -94,8 +94,8 @@ export default function QrPage() {
           <div className="mt-6 space-y-4">
             <div>
               <p className="text-sm font-semibold text-slate-700">رابط القائمة</p>
-              <div className="mt-2 flex items-center justify-between rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600">
-                <span>https://menu.alwaha-restaurant.com</span>
+              <div className="mt-2 flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                <span className="break-all">https://menu.alwaha-restaurant.com</span>
                 <button className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500">
                   <FiCopy />
                 </button>
@@ -104,7 +104,7 @@ export default function QrPage() {
 
             <div>
               <p className="text-sm font-semibold text-slate-700">نوع رمز QR</p>
-              <div className="mt-2 flex items-center justify-between rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600">
+              <div className="mt-2 flex flex-col gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
                 قائمة فقط (العرض)
                 <span className="text-slate-400">⌄</span>
               </div>

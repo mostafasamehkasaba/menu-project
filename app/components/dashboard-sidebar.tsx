@@ -48,7 +48,10 @@ export default function DashboardSidebar() {
         </div>
       </div>
 
-      <nav className="mt-6 space-y-2" dir="rtl">
+      <nav
+        className="mt-6 flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:gap-2 lg:overflow-visible"
+        dir="rtl"
+      >
         {sidebarItems.map((item) => {
           const isActive =
             pathname === item.href ||
@@ -57,7 +60,7 @@ export default function DashboardSidebar() {
             <Link
               key={item.label}
               href={item.href}
-              className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-right text-sm font-semibold transition ${
+              className={`flex shrink-0 items-center gap-3 whitespace-nowrap rounded-2xl px-4 py-3 text-right text-sm font-semibold transition lg:w-full ${
                 isActive
                   ? "bg-emerald-500 text-white shadow-sm"
                   : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
@@ -70,7 +73,7 @@ export default function DashboardSidebar() {
         })}
       </nav>
 
-      <div className="mt-6 flex items-center justify-between text-xs text-slate-400">
+      <div className="mt-4 flex items-center justify-between text-xs text-slate-400 lg:mt-6">
         <button className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500">
           ؟
         </button>
