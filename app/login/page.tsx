@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   apiFetch,
@@ -76,7 +76,7 @@ const extractTokens = (response: unknown): ExtractedTokens => {
   return primary;
 };
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") ?? "/dashboard";
@@ -91,7 +91,7 @@ export default function LoginPage() {
     }
   }, [nextPath, router]);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
@@ -103,7 +103,7 @@ export default function LoginPage() {
       const { accessToken, refreshToken, message } = extractTokens(response);
 
       if (!accessToken) {
-        throw new Error(message ?? "Ù„Ù… ÙŠØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„ØªÙˆÙƒÙ† Ù…Ù† Ø§Ù„Ø³ÙŠØ±ÙØ±.");
+        throw new Error(message ?? "áã íÊã ÇÓÊáÇã ÇáÊæßä ãä ÇáÓíÑİÑ.");
       }
       setAccessToken(accessToken);
       if (refreshToken) {
@@ -112,7 +112,7 @@ export default function LoginPage() {
       router.replace(nextPath);
     } catch (err) {
       const message =
-        (err as { message?: string })?.message ?? "ÙØ´Ù„ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„.";
+        (err as { message?: string })?.message ?? "İÔá ÊÓÌíá ÇáÏÎæá.";
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -124,17 +124,17 @@ export default function LoginPage() {
       <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-6 text-right">
           <h1 className="text-2xl font-semibold text-slate-900">
-            ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
+            ÊÓÌíá ÇáÏÎæá
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Ø§Ø¯Ø®Ù„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø£Ø¯Ù…Ù† Ù„Ù„ÙˆØµÙˆÙ„ Ø¥Ù„Ù‰ Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ….
+            ÇÏÎá ÈíÇäÇÊ ÇáÃÏãä ááæÕæá Åáì áæÍÉ ÇáÊÍßã.
           </p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-1 text-right">
             <label className="text-sm font-semibold text-slate-700">
-              Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ
+              ÇáÈÑíÏ ÇáÅáßÊÑæäí
             </label>
             <input
               type="email"
@@ -149,7 +149,7 @@ export default function LoginPage() {
 
           <div className="space-y-1 text-right">
             <label className="text-sm font-semibold text-slate-700">
-              ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±
+              ßáãÉ ÇáãÑæÑ
             </label>
             <input
               type="password"
@@ -157,7 +157,7 @@ export default function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400"
-              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+              placeholder="••••••••"
             />
           </div>
 
@@ -172,7 +172,7 @@ export default function LoginPage() {
             disabled={isSubmitting}
             className="flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-300"
           >
-            {isSubmitting ? "Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø¯Ø®ÙˆÙ„..." : "Ø¯Ø®ÙˆÙ„"}
+            {isSubmitting ? "ÌÇÑí ÇáÏÎæá..." : "ÏÎæá"}
           </button>
         </form>
       </div>
@@ -180,3 +180,18 @@ export default function LoginPage() {
   );
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 px-4 py-10">
+          <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-right text-sm text-slate-500">
+            ÌÇÑí ÇáÊÍãíá...
+          </div>
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
+  );
+}
