@@ -3,11 +3,16 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Cairo } from "next/font/google";
-import { categories, menuItems, todayOffers } from "../lib/menu-data";
+import {
+  categories as fallbackCategories,
+  menuItems as fallbackMenuItems,
+  todayOffers as fallbackOffers,
+} from "../lib/menu-data";
 import { formatCurrency, getLocalizedText } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
 import { useSearchParams } from "next/navigation";
 import ChatbotSection from "../components/chatbot-section";
+import { fetchMenuCatalog } from "../lib/menu-api";
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
@@ -15,6 +20,11 @@ const cairo = Cairo({
 
 function MenuPageContent() {
   const [activeId, setActiveId] = useState("all");
+  const [catalog, setCatalog] = useState(() => ({
+    categories: fallbackCategories,
+    items: fallbackMenuItems,
+    offers: fallbackOffers,
+  }));
   const { dir, lang, t, toggleLang } = useLanguage();
   const searchParams = useSearchParams();
   const showCallWaiter = searchParams.get("from") === "table";
@@ -61,10 +71,38 @@ function MenuPageContent() {
 
   const filteredItems = useMemo(() => {
     if (activeId === "all") {
-      return menuItems;
+      return catalog.items;
     }
-    return menuItems.filter((item) => item.category === activeId);
-  }, [activeId]);
+    return catalog.items.filter((item) => item.category === activeId);
+  }, [activeId, catalog.items]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCatalog = async () => {
+      const data = await fetchMenuCatalog();
+      if (!mounted || !data) {
+        return;
+      }
+
+      setCatalog((prev) => ({
+        categories: data.categories.length ? data.categories : prev.categories,
+        items: data.items.length ? data.items : prev.items,
+        offers: data.offers.length ? data.offers : prev.offers,
+      }));
+    };
+
+    loadCatalog();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!catalog.categories.some((category) => category.id === activeId)) {
+      setActiveId("all");
+    }
+  }, [catalog.categories, activeId]);
 
   if (!isRestaurantOpen) {
     return (
@@ -139,14 +177,16 @@ function MenuPageContent() {
 
         <section className="mt-6 rounded-3xl bg-white p-4 shadow-[0_14px_30px_rgba(15,23,42,0.08)] sm:p-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {todayOffers.map((offer) => (
+            {catalog.offers.map((offer) => (
               <article
                 key={offer.id}
                 className="relative overflow-hidden rounded-3xl bg-[#f8fafc] shadow-[0_12px_24px_rgba(15,23,42,0.08)]"
               >
-                <span className="absolute right-4 top-4 rounded-full bg-orange-500/90 px-3 py-1 text-xs font-semibold text-white">
-                  {offer.badge}
-                </span>
+                {offer.badge && (
+                  <span className="absolute right-4 top-4 rounded-full bg-orange-500/90 px-3 py-1 text-xs font-semibold text-white">
+                    {offer.badge}
+                  </span>
+                )}
                 <img
                   src={offer.image}
                   alt={getLocalizedText(offer.title, lang)}
@@ -164,9 +204,11 @@ function MenuPageContent() {
                     <span className="text-orange-500">
                       {formatCurrency(offer.price, lang)}
                     </span>
-                    <span className="text-xs text-slate-400 line-through">
-                      {formatCurrency(offer.oldPrice, lang)}
-                    </span>
+                    {offer.oldPrice ? (
+                      <span className="text-xs text-slate-400 line-through">
+                        {formatCurrency(offer.oldPrice, lang)}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </article>
@@ -176,7 +218,7 @@ function MenuPageContent() {
 
         <section className="mt-10">
           <div className="flex flex-wrap items-center gap-3">
-            {categories.map((category) => (
+            {catalog.categories.map((category) => (
               <button
                 key={category.id}
                 type="button"

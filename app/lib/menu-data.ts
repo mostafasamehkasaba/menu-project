@@ -1,7 +1,7 @@
 import type { LocalizedText } from "./i18n";
 
 export type MenuCategory = {
-  id: "all" | "apps" | "mains" | "drinks" | "desserts";
+  id: string;
   label: LocalizedText;
   icon: string;
 };
@@ -17,7 +17,7 @@ export type MenuItem = {
   name: LocalizedText;
   desc: LocalizedText;
   price: number;
-  category: MenuCategory["id"];
+  category: string;
   image: string;
   tag?: "new" | "hot";
   extras?: MenuExtra[];
@@ -28,8 +28,8 @@ export type OfferItem = {
   title: LocalizedText;
   desc: LocalizedText;
   price: number;
-  oldPrice: number;
-  badge: string;
+  oldPrice?: number;
+  badge?: string;
   image: string;
 };
 

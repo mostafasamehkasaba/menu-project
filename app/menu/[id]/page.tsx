@@ -5,9 +5,10 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
 import { addToCart } from "../../lib/cart";
-import { menuItems } from "../../lib/menu-data";
+import { menuItems, type MenuItem } from "../../lib/menu-data";
 import { formatCurrency, getLocalizedText } from "../../lib/i18n";
 import { useLanguage } from "../../components/language-provider";
+import { fetchMenuItemById } from "../../lib/menu-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -24,7 +25,8 @@ export default function MenuItemPage() {
   const { dir, lang, t } = useLanguage();
   const idValue = Array.isArray(params.id) ? params.id[0] : params.id;
   const itemId = Number(idValue);
-  const item = menuItems.find((entry) => entry.id === itemId);
+  const [item, setItem] = useState<MenuItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [quantity, setQuantity] = useState(1);
   const [selectedExtras, setSelectedExtras] = useState<Record<string, boolean>>(
@@ -55,6 +57,46 @@ export default function MenuItemPage() {
     const timer = window.setTimeout(() => setCartToast(null), 2000);
     return () => window.clearTimeout(timer);
   }, [cartToast]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadItem = async () => {
+      if (!Number.isFinite(itemId)) {
+        setItem(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const apiItem = await fetchMenuItemById(itemId);
+      const fallbackItem = menuItems.find((entry) => entry.id === itemId) ?? null;
+
+      if (!mounted) {
+        return;
+      }
+
+      setItem(apiItem ?? fallbackItem);
+      setIsLoading(false);
+    };
+
+    loadItem();
+    return () => {
+      mounted = false;
+    };
+  }, [itemId]);
+
+  if (isLoading) {
+    return (
+      <div
+        className={`${cairo.className} min-h-screen bg-[#f7f7f8] text-slate-900`}
+        dir={dir}
+      >
+        <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+          <div className="text-sm text-slate-500">Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!item) {
     return (
