@@ -103,7 +103,7 @@ function LoginPageContent() {
       const { accessToken, refreshToken, message } = extractTokens(response);
 
       if (!accessToken) {
-        throw new Error(message ?? "áã íÊã ÇÓÊáÇã ÇáÊæßä ãä ÇáÓíÑİÑ.");
+        throw new Error(message ?? "Ù„Ù… ÙŠØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„ØªÙˆÙƒÙ† Ù…Ù† Ø§Ù„Ø³ÙŠØ±ÙØ±.");
       }
       setAccessToken(accessToken);
       if (refreshToken) {
@@ -112,7 +112,7 @@ function LoginPageContent() {
       router.replace(nextPath);
     } catch (err) {
       const message =
-        (err as { message?: string })?.message ?? "İÔá ÊÓÌíá ÇáÏÎæá.";
+        (err as { message?: string })?.message ?? "ÙØ´Ù„ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„.";
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -124,17 +124,17 @@ function LoginPageContent() {
       <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-6 text-right">
           <h1 className="text-2xl font-semibold text-slate-900">
-            ÊÓÌíá ÇáÏÎæá
+            ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            ÇÏÎá ÈíÇäÇÊ ÇáÃÏãä ááæÕæá Åáì áæÍÉ ÇáÊÍßã.
+            Ø§Ø¯Ø®Ù„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø£Ø¯Ù…Ù† Ù„Ù„ÙˆØµÙˆÙ„ Ø¥Ù„Ù‰ Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ….
           </p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-1 text-right">
             <label className="text-sm font-semibold text-slate-700">
-              ÇáÈÑíÏ ÇáÅáßÊÑæäí
+              Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ
             </label>
             <input
               type="email"
@@ -149,7 +149,7 @@ function LoginPageContent() {
 
           <div className="space-y-1 text-right">
             <label className="text-sm font-semibold text-slate-700">
-              ßáãÉ ÇáãÑæÑ
+              ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±
             </label>
             <input
               type="password"
@@ -157,7 +157,7 @@ function LoginPageContent() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400"
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
             />
           </div>
 
@@ -172,7 +172,7 @@ function LoginPageContent() {
             disabled={isSubmitting}
             className="flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-300"
           >
-            {isSubmitting ? "ÌÇÑí ÇáÏÎæá..." : "ÏÎæá"}
+            {isSubmitting ? "Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø¯Ø®ÙˆÙ„..." : "Ø¯Ø®ÙˆÙ„"}
           </button>
         </form>
       </div>
@@ -186,7 +186,7 @@ export default function LoginPage() {
       fallback={
         <div className="min-h-screen bg-slate-50 px-4 py-10">
           <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-right text-sm text-slate-500">
-            ÌÇÑí ÇáÊÍãíá...
+            Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ­Ù…ÙŠÙ„...
           </div>
         </div>
       }
