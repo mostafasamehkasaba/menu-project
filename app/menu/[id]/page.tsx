@@ -8,7 +8,7 @@ import { addToCart } from "../../lib/cart";
 import { menuItems, type MenuItem } from "../../lib/menu-data";
 import { formatCurrency, getLocalizedText } from "../../lib/i18n";
 import { useLanguage } from "../../components/language-provider";
-import { fetchMenuItemById } from "../../lib/menu-api";
+import { fetchMenuItemById } from "../../services/menu-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],

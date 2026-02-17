@@ -1,61 +1,221 @@
-﻿"use client";
+"use client";
 
-import { useMemo, useState } from "react";
-import type { MenuItem } from "../../lib/menu-data";
-import { categories, menuItems } from "../../lib/menu-data";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import type { LocalizedText } from "../../lib/i18n";
 import { formatCurrency, getLocalizedText } from "../../lib/i18n";
 import { useLanguage } from "../../components/language-provider";
 import {
-  FiEdit2,
-  FiPlus,
-  FiSearch,
-  FiTrash2,
-} from "react-icons/fi";
+  createProduct,
+  deleteProduct,
+  fetchCategories,
+  fetchProducts,
+  fetchTags,
+  toggleProductAvailability,
+  updateProduct,
+  type ApiCategory,
+  type ApiProductRead,
+  type ApiTag,
+} from "../../services/admin-api";
+import { getApiBaseUrl } from "../../services/api-client";
+import { FiEdit2, FiPlus, FiSearch, FiTrash2 } from "react-icons/fi";
 
-const categoryOptions = categories.filter((category) => category.id !== "all");
-const defaultCategoryId = (categoryOptions[0]?.id ?? "apps") as MenuItem["category"];
+const defaultProductImage = "/images/placeholder.jpg";
+
+type CategoryOption = {
+  id: string;
+  label: LocalizedText;
+  isActive?: boolean;
+};
+
+type TagOption = {
+  id: string;
+  label: LocalizedText;
+  colorKey?: string | null;
+  code?: string | null;
+};
+
+type ProductRow = {
+  id: number;
+  name: LocalizedText;
+  desc: LocalizedText;
+  price: number;
+  categoryId: string;
+  image: string;
+  isAvailable: boolean;
+  tags: TagOption[];
+};
 
 type ProductForm = {
   nameAr: string;
   nameEn: string;
+  descAr: string;
   price: string;
-  category: MenuItem["category"];
-  tag: "none" | "new" | "hot";
+  categoryId: string;
+  tagId: string;
   image: string;
+};
+
+
+const toLocalizedText = (
+  arValue?: string | null,
+  enValue?: string | null
+): LocalizedText => ({
+  ar: arValue?.trim() || "",
+  en: enValue?.trim() || arValue?.trim() || "",
+});
+
+const parseNumber = (value: string | number | null | undefined) => {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const resolveImageUrl = (image?: string | null) => {
+  if (!image) {
+    return null;
+  }
+  if (/^https?:\/\//i.test(image)) {
+    return image;
+  }
+  const apiBase = getApiBaseUrl();
+  if (!apiBase) {
+    return image;
+  }
+  const normalized = image.startsWith("/") ? image : `/${image}`;
+  return `${apiBase}${normalized}`;
+};
+
+const mapApiCategory = (category: ApiCategory): CategoryOption => ({
+  id: String(category.id),
+  label: toLocalizedText(category.name_ar, category.name_en),
+  isActive: category.is_active ?? true,
+});
+
+const mapApiTag = (tag: ApiTag): TagOption => ({
+  id: String(tag.id),
+  label: toLocalizedText(tag.name_ar, tag.name_ar),
+  colorKey: tag.color_key ?? null,
+  code: tag.code,
+});
+
+const mapApiProduct = (product: ApiProductRead): ProductRow => ({
+  id: product.id,
+  name: toLocalizedText(product.name_ar, product.name_ar),
+  desc: toLocalizedText(product.description_ar ?? "", product.description_ar),
+  price: parseNumber(product.price),
+  categoryId: product.category ? String(product.category.id) : "uncategorized",
+  image: resolveImageUrl(product.image) || defaultProductImage,
+  isAvailable: product.is_available ?? true,
+  tags: product.tags ? product.tags.map(mapApiTag) : [],
+});
+
+
+const getTagTone = (colorKey?: string | null) => {
+  const key = (colorKey || "").toLowerCase();
+  if (key.includes("blue")) return "bg-blue-50 text-blue-600";
+  if (key.includes("green") || key.includes("emerald"))
+    return "bg-emerald-50 text-emerald-600";
+  if (key.includes("orange")) return "bg-orange-50 text-orange-600";
+  if (key.includes("yellow")) return "bg-yellow-50 text-yellow-700";
+  if (key.includes("purple")) return "bg-purple-50 text-purple-600";
+  if (key.includes("rose") || key.includes("red"))
+    return "bg-rose-50 text-rose-600";
+  return "bg-slate-100 text-slate-600";
 };
 
 export default function ProductsPage() {
   const { lang } = useLanguage();
-  const [items, setItems] = useState<MenuItem[]>(menuItems);
+  const [items, setItems] = useState<ProductRow[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [tags, setTags] = useState<TagOption[]>([]);
   const [query, setQuery] = useState("");
-  const [activeIds, setActiveIds] = useState<Set<number>>(
-    () => new Set(menuItems.map((item) => item.id))
-  );
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
     name: string;
   } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+
+  const defaultCategoryId = categories[0]?.id ?? "";
   const [form, setForm] = useState<ProductForm>({
     nameAr: "",
     nameEn: "",
+    descAr: "",
     price: "",
-    category: defaultCategoryId,
-    tag: "none",
+    categoryId: defaultCategoryId,
+    tagId: "",
     image: "",
   });
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadData = async () => {
+      setLoadError(null);
+      const [categoriesResult, tagsResult, productsResult] =
+        await Promise.allSettled([
+          fetchCategories(),
+          fetchTags(),
+          fetchProducts(),
+        ]);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (
+        categoriesResult.status === "fulfilled" &&
+        categoriesResult.value &&
+        categoriesResult.value.length
+      ) {
+        const mapped = categoriesResult.value.map(mapApiCategory);
+        setCategories(mapped);
+      } else {
+        setCategories([]);
+        setLoadError("تعذر تحميل التصنيفات من الباك.");
+      }
+
+      if (tagsResult.status === "fulfilled" && tagsResult.value) {
+        setTags(tagsResult.value.map(mapApiTag));
+      } else {
+        setTags([]);
+      }
+
+      if (productsResult.status === "fulfilled" && productsResult.value) {
+        setItems(productsResult.value.map(mapApiProduct));
+      } else {
+        setItems([]);
+        setLoadError("تعذر تحميل المنتجات من الباك.");
+      }
+    };
+
+    loadData();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const resolvedCategoryId = useMemo(() => {
+    if (!categories.length) {
+      return "";
+    }
+    const exists = categories.some((category) => category.id === form.categoryId);
+    return exists ? form.categoryId : categories[0]?.id ?? "";
+  }, [categories, form.categoryId]);
 
   const categoryMap = useMemo(() => {
     const map = new Map<string, string>();
     categories.forEach((category) => {
-      if (category.id === "all") {
-        return;
-      }
       map.set(category.id, getLocalizedText(category.label, lang));
     });
     return map;
-  }, [lang]);
+  }, [categories, lang]);
+
+  const availableTags = tags;
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -65,7 +225,7 @@ export default function ProductsPage() {
 
     return items.filter((item) => {
       const name = getLocalizedText(item.name, lang).toLowerCase();
-      const categoryLabel = categoryMap.get(item.category)?.toLowerCase() ?? "";
+      const categoryLabel = categoryMap.get(item.categoryId)?.toLowerCase() ?? "";
       return (
         name.includes(normalizedQuery) ||
         categoryLabel.includes(normalizedQuery)
@@ -73,102 +233,113 @@ export default function ProductsPage() {
     });
   }, [query, lang, categoryMap, items]);
 
-  const toggleActive = (id: number) => {
-    setActiveIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const handleEdit = (item: MenuItem) => {
+  const handleEdit = (item: ProductRow) => {
     setEditingId(item.id);
     setForm({
       nameAr: item.name.ar,
       nameEn: item.name.en,
+      descAr: item.desc.ar,
       price: String(item.price),
-      category: item.category,
-      tag: item.tag ?? "none",
+      categoryId: item.categoryId,
+      tagId: item.tags[0]?.id ?? "",
       image: item.image,
     });
+    setImageFile(null);
+    setFileInputKey((prev) => prev + 1);
+    setFormError(null);
     setShowForm(true);
-  };
-
-  const confirmDelete = () => {
-    if (!deleteTarget) {
-      return;
-    }
-    setItems((prev) => {
-      const next = prev.filter((item) => item.id !== deleteTarget.id);
-      return next.length === prev.length ? [...prev] : next;
-    });
-    setActiveIds((prev) => {
-      const next = new Set(prev);
-      next.delete(deleteTarget.id);
-      return next;
-    });
-    setDeleteTarget(null);
   };
 
   const resetForm = () => {
     setForm({
       nameAr: "",
       nameEn: "",
+      descAr: "",
       price: "",
-      category: defaultCategoryId,
-      tag: "none",
+      categoryId: categories[0]?.id ?? "",
+      tagId: "",
       image: "",
     });
+    setImageFile(null);
+    setFileInputKey((prev) => prev + 1);
+    setFormError(null);
   };
 
-  const handleSave = () => {
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setImageFile(null);
+      setForm((prev) => ({ ...prev, image: "" }));
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setForm((prev) => ({ ...prev, image: result }));
+    };
+    reader.readAsDataURL(file);
+    setImageFile(file);
+  };
+
+  const clearImage = () => {
+    setForm((prev) => ({ ...prev, image: defaultProductImage }));
+    setImageFile(null);
+    setFileInputKey((prev) => prev + 1);
+  };
+
+  const handleSave = async () => {
+    setFormError(null);
     const trimmedAr = form.nameAr.trim();
-    const trimmedEn = form.nameEn.trim();
-    const priceValue = Number(form.price);
-    if (!trimmedAr || !form.category || !Number.isFinite(priceValue)) {
+    const descAr = form.descAr.trim();
+    const priceValue = form.price.trim();
+    const numericCategoryId = Number(resolvedCategoryId);
+    const hasNumericCategory = Number.isFinite(numericCategoryId) && numericCategoryId > 0;
+
+    if (!trimmedAr || !priceValue) {
+      return;
+    }
+    if (!hasNumericCategory) {
+      setFormError("لا يمكن حفظ المنتج قبل تحميل تصنيفات الباك. تأكد من الاتصال والتوكن.");
       return;
     }
 
-    const tagValue = form.tag === "none" ? undefined : (form.tag as "new" | "hot");
+    const tagIdValue = form.tagId ? Number(form.tagId) : null;
+    const existing = editingId !== null
+      ? items.find((item) => item.id === editingId)
+      : null;
+
+    const payload = {
+      name_ar: trimmedAr,
+      description_ar: descAr || undefined,
+      category: numericCategoryId,
+      price: priceValue,
+      is_available: existing?.isAvailable ?? true,
+      tag_ids: tagIdValue ? [tagIdValue] : undefined,
+    };
 
     if (editingId !== null) {
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === editingId
-            ? {
-                ...item,
-                name: { ar: trimmedAr, en: trimmedEn || trimmedAr },
-                price: priceValue,
-                category: form.category as MenuItem["category"],
-                tag: tagValue,
-                image: form.image || item.image,
-              }
-            : item
-        )
-      );
+      try {
+        const updated = await updateProduct(editingId, payload, imageFile);
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === editingId ? mapApiProduct(updated) : item
+          )
+        );
+      } catch {
+        setFormError("فشل تحديث المنتج من الباك. تحقق من الاتصال والتوكن.");
+        return;
+      }
     } else {
-      const nextId = items.length
-        ? Math.max(...items.map((item) => item.id)) + 1
-        : 1;
-      const nextItem: MenuItem = {
-        id: nextId,
-        name: { ar: trimmedAr, en: trimmedEn || trimmedAr },
-        desc: { ar: "", en: "" },
-        price: priceValue,
-        category: form.category as MenuItem["category"],
-        image: form.image || "/images/placeholder.jpg",
-        tag: tagValue,
-      };
-      setItems((prev) => [nextItem, ...prev]);
-      setActiveIds((prev) => {
-        const next = new Set(prev);
-        next.add(nextId);
-        return next;
-      });
+      try {
+        const created = await createProduct(payload, imageFile);
+        setItems((prev) => [mapApiProduct(created), ...prev]);
+      } catch {
+        setFormError("فشل إضافة المنتج على الباك. تحقق من الاتصال والتوكن.");
+        return;
+      }
     }
 
     setEditingId(null);
@@ -176,17 +347,44 @@ export default function ProductsPage() {
     resetForm();
   };
 
+  const handleToggleAvailable = async (id: number) => {
+    const target = items.find((item) => item.id === id);
+    if (!target) {
+      return;
+    }
+
+    try {
+      const updated = await toggleProductAvailability(id);
+      setItems((prev) =>
+        prev.map((item) => (item.id === id ? mapApiProduct(updated) : item))
+      );
+      return;
+    } catch {
+      setActionError("تعذر تحديث حالة التوفر من الباك.");
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+    setActionError(null);
+    try {
+      await deleteProduct(deleteTarget.id);
+      setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch {
+      setActionError("فشل حذف المنتج من الباك.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header className="rounded-3xl border border-slate-200 bg-white/80 px-5 py-4 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="order-1 text-right lg:order-1">
-            <p className="text-sm font-semibold text-slate-900">
-              إدارة المنتجات
-            </p>
-            <p className="text-xs text-slate-400">
-              {items.length} منتج
-            </p>
+            <p className="text-sm font-semibold text-slate-900">إدارة المنتجات</p>
+            <p className="text-xs text-slate-400">{items.length} منتج</p>
           </div>
 
           <div className="order-2 flex-1 lg:order-2">
@@ -208,6 +406,8 @@ export default function ProductsPage() {
               onClick={() => {
                 setEditingId(null);
                 resetForm();
+                setActionError(null);
+                setLoadError(null);
                 setShowForm((prev) => !prev);
               }}
               className="flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(16,185,129,0.35)] transition hover:-translate-y-0.5"
@@ -217,6 +417,16 @@ export default function ProductsPage() {
             </button>
           </div>
         </div>
+        {loadError ? (
+          <p className="mt-3 text-right text-xs font-semibold text-rose-600">
+            {loadError}
+          </p>
+        ) : null}
+        {actionError ? (
+          <p className="mt-3 text-right text-xs font-semibold text-rose-600">
+            {actionError}
+          </p>
+        ) : null}
       </header>
 
       {showForm ? (
@@ -255,19 +465,30 @@ export default function ProductsPage() {
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
               />
             </label>
+            <label className="block text-right text-sm text-slate-600 md:col-span-3">
+              وصف المنتج
+              <input
+                type="text"
+                value={form.descAr}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, descAr: event.target.value }))
+                }
+                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
+              />
+            </label>
             <label className="block text-right text-sm text-slate-600">
               التصنيف
               <select
-                value={form.category}
+                value={resolvedCategoryId}
                 onChange={(event) =>
                   setForm((prev) => ({
                     ...prev,
-                    category: event.target.value as MenuItem["category"],
+                    categoryId: event.target.value,
                   }))
                 }
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
               >
-                {categoryOptions.map((category) => (
+                {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {getLocalizedText(category.label, lang)}
                   </option>
@@ -277,30 +498,60 @@ export default function ProductsPage() {
             <label className="block text-right text-sm text-slate-600">
               العلامة
               <select
-                value={form.tag}
+                value={form.tagId}
                 onChange={(event) =>
                   setForm((prev) => ({
                     ...prev,
-                    tag: event.target.value as ProductForm["tag"],
+                    tagId: event.target.value,
                   }))
                 }
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
               >
-                <option value="none">بدون</option>
-                <option value="new">جديد</option>
-                <option value="hot">حار</option>
+                <option value="">بدون</option>
+                {availableTags.map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    {getLocalizedText(tag.label, lang)}
+                  </option>
+                ))}
               </select>
             </label>
-            <label className="block text-right text-sm text-slate-600 md:col-span-2">
-              رابط الصورة
-              <input
-                type="text"
-                value={form.image}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, image: event.target.value }))
-                }
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
-              />
+            <label className="block text-right text-sm text-slate-600 md:col-span-3">
+              صورة المنتج
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-3">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                  {form.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={form.image}
+                      alt="صورة المنتج"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-[11px] text-slate-400">بدون صورة</span>
+                  )}
+                </div>
+                <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+                  <input
+                    key={fileInputKey}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="block w-full cursor-pointer rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+                  />
+                  {form.image ? (
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
+                    >
+                      استخدام الصورة الافتراضية
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                ارفع صورة بصيغة PNG أو JPG، وسيتم استخدامها في المنتج.
+              </p>
             </label>
           </div>
 
@@ -324,6 +575,11 @@ export default function ProductsPage() {
               {editingId !== null ? "حفظ التعديل" : "إضافة المنتج"}
             </button>
           </div>
+          {formError ? (
+            <p className="mt-3 text-right text-xs font-semibold text-rose-600">
+              {formError}
+            </p>
+          ) : null}
         </section>
       ) : null}
 
@@ -331,9 +587,7 @@ export default function ProductsPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
             <div className="text-right">
-              <h3 className="text-lg font-semibold text-slate-900">
-                تأكيد الحذف
-              </h3>
+              <h3 className="text-lg font-semibold text-slate-900">تأكيد الحذف</h3>
               <p className="mt-2 text-sm text-slate-500">
                 هل تريد حذف المنتج{" "}
                 <span className="font-semibold text-slate-700">
@@ -379,10 +633,11 @@ export default function ProductsPage() {
             </div>
 
             {filteredItems.map((item) => {
-              const isActive = activeIds.has(item.id);
               const name = getLocalizedText(item.name, lang);
               const categoryLabel =
-                categoryMap.get(item.category) ?? item.category;
+                categoryMap.get(item.categoryId) ?? item.categoryId;
+              const tag = item.tags[0];
+              const tagLabel = tag ? getLocalizedText(tag.label, lang) : "";
 
               return (
                 <div
@@ -390,6 +645,7 @@ export default function ProductsPage() {
                   className="grid grid-cols-[minmax(0,1.6fr)_0.9fr_0.8fr_0.8fr_0.7fr_0.9fr] items-center border-b border-slate-100 px-5 py-4 text-sm text-slate-700 last:border-b-0"
                 >
                   <div className="flex items-center justify-start gap-3 text-right">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={item.image}
                       alt={name}
@@ -413,15 +669,13 @@ export default function ProductsPage() {
                   </div>
 
                   <div className="flex items-center justify-start gap-2 whitespace-nowrap">
-                    {item.tag ? (
+                    {tagLabel ? (
                       <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          item.tag === "new"
-                            ? "bg-blue-50 text-blue-600"
-                            : "bg-rose-50 text-rose-600"
-                        }`}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getTagTone(
+                          tag?.colorKey
+                        )}`}
                       >
-                        {item.tag === "new" ? "جديد" : "حار"}
+                        {tagLabel}
                       </span>
                     ) : (
                       <span className="text-xs text-slate-300">-</span>
@@ -431,15 +685,15 @@ export default function ProductsPage() {
                   <div className="flex items-center justify-center">
                     <button
                       type="button"
-                      onClick={() => toggleActive(item.id)}
+                      onClick={() => handleToggleAvailable(item.id)}
                       className={`relative h-6 w-11 rounded-full transition ${
-                        isActive ? "bg-emerald-500" : "bg-slate-200"
+                        item.isAvailable ? "bg-emerald-500" : "bg-slate-200"
                       }`}
-                      aria-pressed={isActive}
+                      aria-pressed={item.isAvailable}
                     >
                       <span
                         className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                          isActive ? "left-5" : "left-0.5"
+                          item.isAvailable ? "left-5" : "left-0.5"
                         }`}
                       />
                     </button>
@@ -471,5 +725,4 @@ export default function ProductsPage() {
     </div>
   );
 }
-
 

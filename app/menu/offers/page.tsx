@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -60,7 +60,7 @@ const comboDeals: {
 }[] = [
   {
     id: 1,
-    title: { ar: "بيتزا مارغريتا", en: "Margherita pizza" },
+    title: { ar: "بيتزا مارجريتا", en: "Margherita pizza" },
     oldPrice: 150,
     price: 127,
     image:
@@ -120,7 +120,7 @@ export default function OffersPage() {
         <section className="w-full rounded-[28px] border border-orange-200 bg-gradient-to-b from-orange-500 to-orange-600 text-white shadow-[0_20px_40px_rgba(234,106,54,0.25)]">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
             <button className="grid h-10 w-10 place-items-center rounded-full bg-white/20 text-lg">
-              ↺
+              ←
             </button>
             <div className="text-center">
               <h1 className="text-lg font-semibold sm:text-xl">
@@ -131,7 +131,7 @@ export default function OffersPage() {
               </p>
             </div>
             <button className="grid h-10 w-10 place-items-center rounded-full bg-white/20 text-lg">
-              ←
+              →
             </button>
           </div>
         </section>
@@ -320,3 +320,5 @@ export default function OffersPage() {
     </div>
   );
 }
+
+

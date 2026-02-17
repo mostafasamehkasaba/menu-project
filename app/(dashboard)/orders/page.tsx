@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FiCheckCircle,
   FiClock,
@@ -8,94 +8,198 @@ import {
   FiPackage,
   FiSearch,
 } from "react-icons/fi";
+import { fetchOrders, setOrderStatus, type ApiOrderRead } from "../../services/admin-api";
 
-type OrderStatus = "new" | "preparing" | "served" | "canceled";
+type OrderStatusKey = "all" | ApiOrderRead["status"];
 
-type Order = {
-  id: number;
-  amount: number;
-  minutes: number;
-  time: string;
-  type: "داخل المطعم" | "توصيل";
-  table?: number;
-  status: OrderStatus;
-  paid: boolean;
-  partialPaid?: string;
+type StatusMeta = {
+  label: string;
+  className: string;
 };
 
-const orders: Order[] = [
-  {
-    id: 1245,
-    amount: 285,
-    minutes: 20,
-    time: "14:30",
-    type: "داخل المطعم",
-    table: 5,
-    status: "new",
-    paid: false,
-  },
-  {
-    id: 1244,
-    amount: 175,
-    minutes: 10,
-    time: "14:15",
-    type: "داخل المطعم",
-    table: 2,
-    status: "preparing",
-    paid: false,
-    partialPaid: "(ريال 100 / 175)",
-  },
-  {
-    id: 1243,
-    amount: 95,
-    minutes: 5,
-    time: "14:00",
-    type: "توصيل",
-    status: "preparing",
-    paid: true,
-  },
-  {
-    id: 1242,
-    amount: 420,
-    minutes: 15,
-    time: "13:45",
-    type: "داخل المطعم",
-    table: 8,
-    status: "served",
-    paid: false,
-  },
-];
+const statusPills: Record<ApiOrderRead["status"], StatusMeta> = {
+  NEW: { label: "جديد", className: "bg-blue-50 text-blue-600" },
+  PREPARING: { label: "قيد التحضير", className: "bg-orange-50 text-orange-600" },
+  SERVED: { label: "تم التقديم", className: "bg-emerald-50 text-emerald-600" },
+  CANCELLED: { label: "ملغي", className: "bg-slate-100 text-slate-500" },
+};
 
-const statusPills: Record<OrderStatus, { label: string; className: string }> =
-  {
-    new: { label: "جديد", className: "bg-blue-50 text-blue-600" },
-    preparing: { label: "قيد التحضير", className: "bg-orange-50 text-orange-600" },
-    served: { label: "تم التقديم", className: "bg-emerald-50 text-emerald-600" },
-    canceled: { label: "ملغي", className: "bg-slate-100 text-slate-500" },
-  };
+const paymentPills: Record<ApiOrderRead["payment_status"], StatusMeta> = {
+  PAID: { label: "مدفوع", className: "bg-emerald-50 text-emerald-600" },
+  PARTIAL: { label: "مدفوع جزئي", className: "bg-amber-50 text-amber-600" },
+  UNPAID: { label: "غير مدفوع", className: "bg-rose-50 text-rose-600" },
+};
 
-const filterTabs: { key: "all" | OrderStatus; label: string; count: number }[] =
-  [
-    { key: "all", label: "الكل", count: 4 },
-    { key: "new", label: "جديد", count: 1 },
-    { key: "preparing", label: "قيد التحضير", count: 2 },
-    { key: "served", label: "تم التقديم", count: 1 },
-    { key: "canceled", label: "ملغي", count: 0 },
-  ];
+const orderTypeLabels: Record<ApiOrderRead["order_type"], string> = {
+  DINE_IN: "في المطعم",
+  TAKEAWAY: "سفري",
+  DELIVERY: "توصيل",
+};
+
+const nextStatusMap: Partial<
+  Record<ApiOrderRead["status"], ApiOrderRead["status"]>
+> = {
+  NEW: "PREPARING",
+  PREPARING: "SERVED",
+};
+
+const formatTime = (value?: string | null) => {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleTimeString("ar-EG", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleDateString("ar-EG");
+};
+
+const minutesAgo = (value?: string | null) => {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+  const diff = Math.max(0, Date.now() - date.getTime());
+  const minutes = Math.round(diff / 60000);
+  if (minutes < 60) {
+    return `${minutes} دقيقة`;
+  }
+  const hours = Math.round(minutes / 60);
+  return `${hours} ساعة`;
+};
+
+const formatSar = (value?: string | null) => {
+  if (!value) {
+    return "0 ر.س";
+  }
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) {
+    return `${value} ر.س`;
+  }
+  return `${numeric.toLocaleString("ar-EG")} ر.س`;
+};
 
 export default function OrdersPage() {
-  const [activeTab, setActiveTab] = useState<"all" | OrderStatus>("all");
-  const filtered =
-    activeTab === "all"
-      ? orders
-      : orders.filter((order) => order.status === activeTab);
+  const [orders, setOrders] = useState<ApiOrderRead[]>([]);
+  const [activeTab, setActiveTab] = useState<OrderStatusKey>("all");
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      const data = await fetchOrders();
+      if (!data) {
+        setLoadError("تعذر تحميل الطلبات من الباك. تأكد من الاتصال والتوكن.");
+        setOrders([]);
+        setSelectedId(null);
+        setIsLoading(false);
+        return;
+      }
+      setOrders(data);
+      setSelectedId(data[0]?.id ?? null);
+      setIsLoading(false);
+    };
+    load();
+  }, []);
+
+  const statusCounts = useMemo(() => {
+    return orders.reduce(
+      (acc, order) => {
+        acc[order.status] += 1;
+        return acc;
+      },
+      { NEW: 0, PREPARING: 0, SERVED: 0, CANCELLED: 0 }
+    );
+  }, [orders]);
+
+  const tabs = useMemo(
+    () => [
+      { key: "all" as const, label: "الكل", count: orders.length },
+      { key: "NEW" as const, label: "جديد", count: statusCounts.NEW },
+      { key: "PREPARING" as const, label: "قيد التحضير", count: statusCounts.PREPARING },
+      { key: "SERVED" as const, label: "تم التقديم", count: statusCounts.SERVED },
+      { key: "CANCELLED" as const, label: "ملغي", count: statusCounts.CANCELLED },
+    ],
+    [orders.length, statusCounts]
+  );
+
+  const filtered = useMemo(() => {
+    const trimmed = search.trim();
+    return orders.filter((order) => {
+      const matchesStatus =
+        activeTab === "all" || order.status === activeTab;
+      if (!matchesStatus) {
+        return false;
+      }
+      if (!trimmed) {
+        return true;
+      }
+      const searchLower = trimmed.toLowerCase();
+      return (
+        String(order.id).includes(searchLower) ||
+        (order.table ? String(order.table).includes(searchLower) : false)
+      );
+    });
+  }, [orders, activeTab, search]);
+
+  const selectedOrder = useMemo(() => {
+    if (!selectedId) {
+      return filtered[0] ?? null;
+    }
+    return orders.find((order) => order.id === selectedId) ?? null;
+  }, [orders, filtered, selectedId]);
+
+  const handleStatusChange = async () => {
+    if (!selectedOrder) {
+      return;
+    }
+    const next = nextStatusMap[selectedOrder.status];
+    if (!next) {
+      return;
+    }
+    setActionError(null);
+    try {
+      const updated = await setOrderStatus(selectedOrder.id, next);
+      setOrders((prev) =>
+        prev.map((order) => (order.id === updated.id ? updated : order))
+      );
+      setSelectedId(updated.id);
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ??
+        "تعذر تحديث حالة الطلب.";
+      setActionError(message);
+    }
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-white px-4 py-3 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
-            {filterTabs.map((tab) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
@@ -118,20 +222,42 @@ export default function OrdersPage() {
             <FiSearch />
             <input
               type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="ابحث عن طلب..."
               className="w-44 bg-transparent text-right outline-none sm:w-56"
             />
           </div>
         </div>
 
+        {loadError ? (
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+            {loadError}
+          </div>
+        ) : null}
+
         <div className="space-y-4">
-          {filtered.map((order, index) => {
+          {isLoading ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-right text-sm text-slate-500">
+              جاري تحميل الطلبات...
+            </div>
+          ) : null}
+          {!isLoading && filtered.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-right text-sm text-slate-500">
+              لا توجد طلبات مطابقة.
+            </div>
+          ) : null}
+          {filtered.map((order) => {
             const status = statusPills[order.status];
+            const payment = paymentPills[order.payment_status];
+            const total = formatSar(order.total ?? order.subtotal ?? "0");
             return (
-              <div
+              <button
                 key={order.id}
-                className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${
-                  index === 0 ? "border-emerald-500" : ""
+                type="button"
+                onClick={() => setSelectedId(order.id)}
+                className={`w-full rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm transition hover:border-emerald-400 ${
+                  selectedOrder?.id === order.id ? "border-emerald-500" : ""
                 }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -142,7 +268,7 @@ export default function OrdersPage() {
                     <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
                       <span className="flex items-center gap-1">
                         <FiClock />
-                        {order.time}
+                        {formatTime(order.created_at)}
                       </span>
                       {order.table ? (
                         <span className="flex items-center gap-1">
@@ -152,7 +278,7 @@ export default function OrdersPage() {
                       ) : (
                         <span className="flex items-center gap-1">
                           <FiMapPin />
-                          {order.type}
+                          {orderTypeLabels[order.order_type]}
                         </span>
                       )}
                     </div>
@@ -163,32 +289,24 @@ export default function OrdersPage() {
                         {status.label}
                       </span>
                       <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          order.paid
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-rose-50 text-rose-600"
-                        }`}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${payment.className}`}
                       >
-                        {order.paid ? "مدفوع" : "غير مدفوع"}
+                        {payment.label}
                       </span>
-                      {order.partialPaid ? (
-                        <span className="text-xs text-slate-500">
-                          {order.partialPaid}
-                        </span>
+                      {order.payment_status === "PARTIAL" ? (
+                        <span className="text-xs text-slate-500">مدفوع جزئي</span>
                       ) : null}
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-900">
-                      ر.س {order.amount}
-                    </p>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-slate-900">{total}</p>
                     <p className="text-xs text-slate-400">
-                      {order.minutes} دقيقة
+                      {minutesAgo(order.created_at)}
                     </p>
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -199,119 +317,165 @@ export default function OrdersPage() {
           <p className="text-sm font-semibold text-slate-900">تفاصيل الطلب</p>
         </div>
 
-        <div className="mt-5 space-y-4 text-sm">
-          <div className="flex items-center justify-between text-slate-500">
-            <span>رقم الطلب</span>
-            <span className="font-semibold text-slate-900">#1245</span>
+        {!selectedOrder ? (
+          <div className="mt-5 text-right text-sm text-slate-500">
+            اختر طلبًا لعرض التفاصيل.
           </div>
-          <div className="flex items-center justify-between text-slate-500">
-            <span>النوع</span>
-            <span className="font-semibold text-slate-900">في المطعم</span>
-          </div>
-          <div className="flex items-center justify-between text-slate-500">
-            <span>الطاولة</span>
-            <span className="font-semibold text-slate-900">5</span>
-          </div>
-          <div className="flex items-center justify-between text-slate-500">
-            <span>الوقت</span>
-            <span className="font-semibold text-slate-900">14:30</span>
-          </div>
-        </div>
-
-        <hr className="my-5 border-slate-200" />
-
-        <div className="text-right">
-          <p className="text-sm font-semibold text-slate-900">حالة الطلب</p>
-        </div>
-        <div className="mt-4 space-y-4 text-sm">
-          <div className="flex items-center justify-between">
-            <div className="text-right">
-              <p className="font-semibold text-slate-900">تم الاستلام</p>
-              <p className="text-xs text-slate-400">14:30</p>
+        ) : (
+          <>
+            <div className="mt-5 space-y-4 text-sm">
+              <div className="flex items-center justify-between text-slate-500">
+                <span>رقم الطلب</span>
+                <span className="font-semibold text-slate-900">
+                  #{selectedOrder.id}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500">
+                <span>النوع</span>
+                <span className="font-semibold text-slate-900">
+                  {selectedOrder.table
+                    ? "في المطعم"
+                    : orderTypeLabels[selectedOrder.order_type]}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500">
+                <span>الطاولة</span>
+                <span className="font-semibold text-slate-900">
+                  {selectedOrder.table ?? "-"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500">
+                <span>الوقت</span>
+                <span className="font-semibold text-slate-900">
+                  {formatTime(selectedOrder.created_at)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500">
+                <span>التاريخ</span>
+                <span className="font-semibold text-slate-900">
+                  {formatDate(selectedOrder.created_at)}
+                </span>
+              </div>
             </div>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-              <FiCheckCircle />
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="text-right">
-              <p className="font-semibold text-slate-900">قيد التحضير</p>
-              <p className="text-xs text-slate-400">20 دقيقة</p>
-            </div>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-orange-50 text-orange-600">
-              <FiClock />
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="text-right">
-              <p className="font-semibold text-slate-900">تم التقديم</p>
-            </div>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500">
-              <FiPackage />
-            </span>
-          </div>
-        </div>
 
-        <hr className="my-5 border-slate-200" />
+            <hr className="my-5 border-slate-200" />
 
-        <div className="text-right">
-          <p className="text-sm font-semibold text-slate-900">المنتجات</p>
-        </div>
-        <div className="mt-4 space-y-3 text-sm">
-          <div className="flex items-center justify-between text-slate-700">
             <div className="text-right">
-              <p className="font-semibold">2x برجر لحم</p>
-              <p className="text-xs text-slate-400">ملاحظة: بدون بصل</p>
+              <p className="text-sm font-semibold text-slate-900">حالة الطلب</p>
             </div>
-            <span>90 ر.س</span>
-          </div>
-          <div className="flex items-center justify-between text-slate-700">
-            <div className="text-right">
-              <p className="font-semibold">1x بيتزا مارغريتا كبيرة</p>
+            <div className="mt-4 space-y-4 text-sm">
+              <div className="flex items-center justify-between">
+                <div className="text-right">
+                  <p className="font-semibold text-slate-900">تم الاستلام</p>
+                  <p className="text-xs text-slate-400">
+                    {formatTime(selectedOrder.created_at)}
+                  </p>
+                </div>
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+                  <FiCheckCircle />
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="text-right">
+                  <p className="font-semibold text-slate-900">قيد التحضير</p>
+                  <p className="text-xs text-slate-400">
+                    {selectedOrder.status === "PREPARING" ||
+                    selectedOrder.status === "SERVED"
+                      ? "جارٍ"
+                      : "غير نشط"}
+                  </p>
+                </div>
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-orange-50 text-orange-600">
+                  <FiClock />
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="text-right">
+                  <p className="font-semibold text-slate-900">تم التقديم</p>
+                </div>
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500">
+                  <FiPackage />
+                </span>
+              </div>
             </div>
-            <span>65 ر.س</span>
-          </div>
-          <div className="flex items-center justify-between text-slate-700">
-            <div className="text-right">
-              <p className="font-semibold">2x سلطة خضراء</p>
-            </div>
-            <span>50 ر.س</span>
-          </div>
-          <div className="flex items-center justify-between text-slate-700">
-            <div className="text-right">
-              <p className="font-semibold">3x عصير برتقال</p>
-              <p className="text-xs text-slate-400">ملاحظة: طازج</p>
-            </div>
-            <span>45 ر.س</span>
-          </div>
-        </div>
 
-        <hr className="my-5 border-slate-200" />
+            <hr className="my-5 border-slate-200" />
 
-        <div className="text-right">
-          <p className="text-sm font-semibold text-slate-900">ملخص الدفع</p>
-        </div>
-        <div className="mt-4 space-y-3 text-sm">
-          <div className="flex items-center justify-between text-slate-700">
-            <span>إجمالي الفاتورة</span>
-            <span className="font-semibold">285 ر.س</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">
-              غير مدفوع
-            </span>
-          </div>
-        </div>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-slate-900">المنتجات</p>
+            </div>
+            <div className="mt-4 space-y-3 text-sm">
+              {selectedOrder.items?.length ? (
+                selectedOrder.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between text-slate-700"
+                  >
+                    <div className="text-right">
+                      <p className="font-semibold">
+                        {item.qty}x {item.product_name}
+                      </p>
+                      {item.notes ? (
+                        <p className="text-xs text-slate-400">
+                          ملاحظة: {item.notes}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span>{formatSar(item.line_total)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-right text-xs text-slate-400">
+                  لا توجد منتجات.
+                </div>
+              )}
+            </div>
 
-        <div className="mt-6 space-y-3">
-          <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-            طباعة
-          </button>
-          <button className="w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">
-            تغيير الحالة
-          </button>
-        </div>
+            <hr className="my-5 border-slate-200" />
+
+            <div className="text-right">
+              <p className="text-sm font-semibold text-slate-900">ملخص الدفع</p>
+            </div>
+            <div className="mt-4 space-y-3 text-sm">
+              <div className="flex items-center justify-between text-slate-700">
+                <span>إجمالي الفاتورة</span>
+                <span className="font-semibold">
+                  {formatSar(selectedOrder.total ?? selectedOrder.subtotal)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    paymentPills[selectedOrder.payment_status].className
+                  }`}
+                >
+                  {paymentPills[selectedOrder.payment_status].label}
+                </span>
+              </div>
+            </div>
+
+            {actionError ? (
+              <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                {actionError}
+              </div>
+            ) : null}
+
+            <div className="mt-6 space-y-3">
+              <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+                طباعة
+              </button>
+              <button
+                type="button"
+                onClick={handleStatusChange}
+                className="w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+              >
+                تغيير الحالة
+              </button>
+            </div>
+          </>
+        )}
       </aside>
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FiCalendar,
   FiChevronDown,
@@ -14,83 +14,30 @@ import {
   FiTrendingUp,
   FiTrash2,
 } from "react-icons/fi";
+import {
+  createOffer,
+  deleteOffer,
+  fetchOffers,
+  toggleOfferActive,
+  updateOffer,
+  type ApiOffer,
+} from "../../services/admin-api";
 
 const defaultOfferImage =
   "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=300&q=80";
 
 type OfferStatus = "active" | "scheduled" | "expired";
 
-type Offer = {
+type OfferRow = {
   id: number;
   title: string;
   desc: string;
-  discount: string;
-  startDate: string;
-  endDate: string;
-  usageUsed: number;
-  usageTotal?: number;
-  status: OfferStatus;
-  active: boolean;
-  image: string;
+  type: "PERCENT" | "FIXED_AMOUNT";
+  value: number;
+  startAt: string;
+  endAt: string;
+  isActive: boolean;
 };
-
-const initialOffers: Offer[] = [
-  {
-    id: 1,
-    title: "خصم 25% على الوجبات العائلية",
-    desc: "احصل على خصم 25% على جميع الوجبات العائلية طوال نهاية الأسبوع",
-    discount: "25%",
-    startDate: "2026-02-01",
-    endDate: "2026-02-28",
-    usageUsed: 142,
-    status: "active",
-    active: true,
-    image:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=300&q=80",
-  },
-  {
-    id: 2,
-    title: "اشتر 1 واحصل على 1 مجانا - برجر",
-    desc: "عرض خاص على جميع أنواع البرجر - اشتر واحد واحصل على الثاني مجانا",
-    discount: "50%",
-    startDate: "2026-02-03",
-    endDate: "2026-02-10",
-    usageUsed: 87,
-    usageTotal: 200,
-    status: "active",
-    active: true,
-    image:
-      "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=300&q=80",
-  },
-  {
-    id: 3,
-    title: "خصم 30 ريال على طلبات التوصيل",
-    desc: "خصم فوري 30 ريال على طلبات التوصيل التي تزيد عن 150 ريال",
-    discount: "30 ر.س",
-    startDate: "2026-01-15",
-    endDate: "2026-02-15",
-    usageUsed: 213,
-    usageTotal: 500,
-    status: "active",
-    active: true,
-    image:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=300&q=80",
-  },
-  {
-    id: 4,
-    title: "عرض وجبة الإفطار الخاص",
-    desc: "وجبة إفطار كاملة مع عصير طبيعي بسعر مخفض 45 ريال فقط",
-    discount: "20%",
-    startDate: "2026-02-05",
-    endDate: "2026-03-05",
-    usageUsed: 0,
-    usageTotal: 100,
-    status: "scheduled",
-    active: false,
-    image:
-      "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?auto=format&fit=crop&w=300&q=80",
-  },
-];
 
 const statusPills: Record<OfferStatus, { label: string; className: string }> = {
   active: { label: "نشط", className: "bg-emerald-50 text-emerald-600" },
@@ -98,8 +45,60 @@ const statusPills: Record<OfferStatus, { label: string; className: string }> = {
   expired: { label: "منتهي", className: "bg-slate-100 text-slate-500" },
 };
 
+const parseNumber = (value: string | number | null | undefined) => {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const mapApiOffer = (offer: ApiOffer): OfferRow => ({
+  id: offer.id,
+  title: offer.title_ar,
+  desc: offer.description_ar ?? "",
+  type: offer.type,
+  value: parseNumber(offer.value),
+  startAt: offer.start_at,
+  endAt: offer.end_at,
+  isActive: offer.is_active ?? true,
+});
+
+const toDateInputValue = (value?: string | null) => {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+  return date.toISOString().slice(0, 10);
+};
+
+const toApiDateTime = (value: string) => {
+  if (!value) {
+    return "";
+  }
+  return `${value}T00:00:00Z`;
+};
+
+const getOfferStatus = (offer: OfferRow): OfferStatus => {
+  if (offer.isActive) {
+    return "active";
+  }
+  const end = new Date(offer.endAt);
+  if (Number.isFinite(end.getTime()) && end.getTime() < Date.now()) {
+    return "expired";
+  }
+  return "scheduled";
+};
+
+const formatOfferValue = (offer: OfferRow) => {
+  if (offer.type === "PERCENT") {
+    return `${offer.value}%`;
+  }
+  return `${offer.value} ر.س`;
+};
+
 export default function OffersPage() {
-  const [offers, setOffers] = useState<Offer[]>(initialOffers);
+  const [offers, setOffers] = useState<OfferRow[]>([]);
   const [statusFilter, setStatusFilter] = useState<"all" | OfferStatus>("all");
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -110,18 +109,39 @@ export default function OffersPage() {
   } | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const copyTimeoutRef = useRef<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
     desc: "",
-    discount: "",
+    type: "PERCENT",
+    value: "",
     startDate: "",
     endDate: "",
-    usageUsed: "",
-    usageTotal: "",
-    status: "scheduled",
     active: "inactive",
-    image: "",
   });
+
+  useEffect(() => {
+    let mounted = true;
+    const loadOffers = async () => {
+      setLoadError(null);
+      const data = await fetchOffers();
+      if (!mounted) {
+        return;
+      }
+      if (data) {
+        setOffers(data.map(mapApiOffer));
+      } else {
+        setOffers([]);
+        setLoadError("تعذر تحميل العروض من الباك.");
+      }
+    };
+
+    loadOffers();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const filteredOffers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -130,27 +150,21 @@ export default function OffersPage() {
         !normalized ||
         offer.title.toLowerCase().includes(normalized) ||
         offer.desc.toLowerCase().includes(normalized);
-      const matchesStatus =
-        statusFilter === "all" ||
-        (offer.active
-          ? "active"
-          : offer.status === "active"
-            ? "expired"
-            : offer.status) === statusFilter;
+      const status = getOfferStatus(offer);
+      const matchesStatus = statusFilter === "all" || status === statusFilter;
       return matchesQuery && matchesStatus;
     });
   }, [offers, query, statusFilter]);
 
   const summaryCards = useMemo(() => {
     const total = offers.length;
-    const activeCount = offers.filter((offer) => offer.active).length;
+    const activeCount = offers.filter((offer) => offer.isActive).length;
     const scheduledCount = offers.filter(
-      (offer) => offer.status === "scheduled" && !offer.active
+      (offer) => getOfferStatus(offer) === "scheduled"
     ).length;
-    const usageTotal = offers.reduce(
-      (acc, offer) => acc + offer.usageUsed,
-      0
-    );
+    const expiredCount = offers.filter(
+      (offer) => getOfferStatus(offer) === "expired"
+    ).length;
 
     return [
       {
@@ -166,115 +180,89 @@ export default function OffersPage() {
         icon: <FiTrendingUp />,
       },
       {
-        label: "إجمالي الاستخدام",
-        value: usageTotal.toString(),
-        tone: "bg-slate-100 text-slate-700",
-        icon: <FiPercent />,
-      },
-      {
         label: "العروض المجدولة",
         value: scheduledCount.toString(),
         tone: "bg-blue-50 text-blue-600",
         icon: <FiCalendar />,
       },
+      {
+        label: "العروض المنتهية",
+        value: expiredCount.toString(),
+        tone: "bg-slate-100 text-slate-700",
+        icon: <FiPercent />,
+      },
     ];
   }, [offers]);
-
-  const toggleActive = (id: number) => {
-    setOffers((prev) =>
-      prev.map((offer) =>
-        offer.id === id ? { ...offer, active: !offer.active } : offer
-      )
-    );
-  };
 
   const resetForm = () => {
     setForm({
       title: "",
       desc: "",
-      discount: "",
+      type: "PERCENT",
+      value: "",
       startDate: "",
       endDate: "",
-      usageUsed: "",
-      usageTotal: "",
-      status: "scheduled",
       active: "inactive",
-      image: "",
     });
+    setFormError(null);
   };
 
-  const handleEdit = (offer: Offer) => {
+  const handleEdit = (offer: OfferRow) => {
     setEditingId(offer.id);
     setForm({
       title: offer.title,
       desc: offer.desc,
-      discount: offer.discount,
-      startDate: offer.startDate,
-      endDate: offer.endDate,
-      usageUsed: String(offer.usageUsed),
-      usageTotal: offer.usageTotal ? String(offer.usageTotal) : "",
-      status: offer.status,
-      active: offer.active ? "active" : "inactive",
-      image: offer.image,
+      type: offer.type,
+      value: String(offer.value),
+      startDate: toDateInputValue(offer.startAt),
+      endDate: toDateInputValue(offer.endAt),
+      active: offer.isActive ? "active" : "inactive",
     });
+    setFormError(null);
     setShowForm(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setFormError(null);
     const title = form.title.trim();
     const desc = form.desc.trim();
-    const discount = form.discount.trim();
+    const value = form.value.trim();
     const startDate = form.startDate.trim();
     const endDate = form.endDate.trim();
-    const usageUsed = Number(form.usageUsed || "0");
-    const usageTotal = form.usageTotal ? Number(form.usageTotal) : undefined;
 
-    if (!title || !discount || !startDate || !endDate) {
+    if (!title || !value || !startDate || !endDate) {
+      setFormError("يرجى تعبئة الحقول المطلوبة.");
       return;
     }
 
+    const payload = {
+      title_ar: title,
+      description_ar: desc || undefined,
+      type: form.type as "PERCENT" | "FIXED_AMOUNT",
+      value,
+      start_at: toApiDateTime(startDate),
+      end_at: toApiDateTime(endDate),
+      is_active: form.active === "active",
+    };
+
     if (editingId !== null) {
-      setOffers((prev) =>
-        prev.map((offer) =>
-          offer.id === editingId
-            ? {
-                ...offer,
-                title,
-                desc,
-                discount,
-                startDate,
-                endDate,
-                usageUsed: Number.isFinite(usageUsed) ? usageUsed : offer.usageUsed,
-                usageTotal:
-                  usageTotal && Number.isFinite(usageTotal)
-                    ? usageTotal
-                    : offer.usageTotal,
-                status: form.status as OfferStatus,
-                active: form.active === "active",
-                image: form.image || offer.image,
-              }
-            : offer
-        )
-      );
+      try {
+        const updated = await updateOffer(editingId, payload);
+        setOffers((prev) =>
+          prev.map((offer) => (offer.id === editingId ? mapApiOffer(updated) : offer))
+        );
+      } catch {
+        setFormError("فشل تحديث العرض من الباك.");
+        return;
+      }
     } else {
-      const nextId = offers.length
-        ? Math.max(...offers.map((offer) => offer.id)) + 1
-        : 1;
-      const nextOffer: Offer = {
-        id: nextId,
-        title,
-        desc,
-        discount,
-        startDate,
-        endDate,
-        usageUsed: Number.isFinite(usageUsed) ? usageUsed : 0,
-        usageTotal:
-          usageTotal && Number.isFinite(usageTotal) ? usageTotal : undefined,
-        status: form.status as OfferStatus,
-        active: form.active === "active",
-        image: form.image || defaultOfferImage,
-      };
-      setOffers((prev) => [nextOffer, ...prev]);
+      try {
+        const created = await createOffer(payload);
+        setOffers((prev) => [mapApiOffer(created), ...prev]);
+      } catch {
+        setFormError("فشل إضافة العرض على الباك.");
+        return;
+      }
     }
 
     setEditingId(null);
@@ -282,7 +270,7 @@ export default function OffersPage() {
     resetForm();
   };
 
-  const handleCopy = async (offer: Offer) => {
+  const handleCopy = async (offer: OfferRow) => {
     const text = offer.title;
     try {
       if (navigator.clipboard?.writeText) {
@@ -310,14 +298,28 @@ export default function OffersPage() {
     }
   };
 
-  const confirmDelete = () => {
+  const handleToggleActive = async (offer: OfferRow) => {
+    try {
+      const updated = await toggleOfferActive(offer.id, !offer.isActive);
+      setOffers((prev) =>
+        prev.map((item) => (item.id === offer.id ? mapApiOffer(updated) : item))
+      );
+    } catch {
+      setLoadError("تعذر تحديث حالة العرض من الباك.");
+    }
+  };
+
+  const confirmDelete = async () => {
     if (!deleteTarget) {
       return;
     }
-    setOffers((prev) =>
-      prev.filter((offer) => offer.id !== deleteTarget.id)
-    );
-    setDeleteTarget(null);
+    try {
+      await deleteOffer(deleteTarget.id);
+      setOffers((prev) => prev.filter((offer) => offer.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch {
+      setLoadError("فشل حذف العرض من الباك.");
+    }
   };
 
   return (
@@ -335,6 +337,7 @@ export default function OffersPage() {
           onClick={() => {
             setEditingId(null);
             resetForm();
+            setLoadError(null);
             setShowForm((prev) => !prev);
           }}
           className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5"
@@ -343,6 +346,11 @@ export default function OffersPage() {
           إضافة عرض جديد
         </button>
       </header>
+      {loadError ? (
+        <p className="text-right text-xs font-semibold text-rose-600">
+          {loadError}
+        </p>
+      ) : null}
 
       {showForm ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -359,17 +367,30 @@ export default function OffersPage() {
               />
             </label>
             <label className="block text-right text-sm text-slate-600">
-              الخصم
-              <input
-                type="text"
-                value={form.discount}
+              نوع الخصم
+              <select
+                value={form.type}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, discount: event.target.value }))
+                  setForm((prev) => ({ ...prev, type: event.target.value }))
+                }
+                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
+              >
+                <option value="PERCENT">نسبة مئوية</option>
+                <option value="FIXED_AMOUNT">قيمة ثابتة</option>
+              </select>
+            </label>
+            <label className="block text-right text-sm text-slate-600">
+              القيمة
+              <input
+                type="number"
+                value={form.value}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, value: event.target.value }))
                 }
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
               />
             </label>
-            <label className="block text-right text-sm text-slate-600 md:col-span-3">
+            <label className="block text-right text-sm text-slate-600 md:col-span-2">
               وصف العرض
               <input
                 type="text"
@@ -403,43 +424,7 @@ export default function OffersPage() {
               />
             </label>
             <label className="block text-right text-sm text-slate-600">
-              الاستخدام
-              <input
-                type="number"
-                value={form.usageUsed}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, usageUsed: event.target.value }))
-                }
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
-              />
-            </label>
-            <label className="block text-right text-sm text-slate-600">
-              الحد الأقصى للاستخدام
-              <input
-                type="number"
-                value={form.usageTotal}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, usageTotal: event.target.value }))
-                }
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
-              />
-            </label>
-            <label className="block text-right text-sm text-slate-600">
-              الحالة
-              <select
-                value={form.status}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, status: event.target.value }))
-                }
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
-              >
-                <option value="active">{statusPills.active.label}</option>
-                <option value="scheduled">{statusPills.scheduled.label}</option>
-                <option value="expired">{statusPills.expired.label}</option>
-              </select>
-            </label>
-            <label className="block text-right text-sm text-slate-600">
-              مفعل الآن
+              مفعّل الآن
               <select
                 value={form.active}
                 onChange={(event) =>
@@ -450,17 +435,6 @@ export default function OffersPage() {
                 <option value="active">نعم</option>
                 <option value="inactive">لا</option>
               </select>
-            </label>
-            <label className="block text-right text-sm text-slate-600 md:col-span-3">
-              رابط الصورة
-              <input
-                type="text"
-                value={form.image}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, image: event.target.value }))
-                }
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
-              />
             </label>
           </div>
 
@@ -484,6 +458,11 @@ export default function OffersPage() {
               {editingId !== null ? "حفظ التعديل" : "إضافة العرض"}
             </button>
           </div>
+          {formError ? (
+            <p className="mt-3 text-right text-xs font-semibold text-rose-600">
+              {formError}
+            </p>
+          ) : null}
         </section>
       ) : null}
 
@@ -579,33 +558,28 @@ export default function OffersPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <div className="min-w-[980px]">
-            <div className="grid grid-cols-[90px_1.5fr_0.7fr_0.9fr_0.8fr_0.7fr_0.7fr_0.7fr] border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-600">
+          <div className="min-w-[940px]">
+            <div className="grid grid-cols-[90px_1.6fr_0.8fr_0.9fr_0.7fr_0.7fr_0.7fr] border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-600">
               <div className="text-center">الصورة</div>
               <div className="text-right">العنوان</div>
               <div className="text-center">الخصم</div>
               <div className="text-center">الفترة</div>
-              <div className="text-center">الاستخدام</div>
               <div className="text-center">الحالة</div>
-              <div className="text-center">مفعل</div>
+              <div className="text-center">مفعّل</div>
               <div className="text-center">الإجراءات</div>
             </div>
 
             {filteredOffers.map((offer) => {
-              const status: OfferStatus = offer.active
-                ? "active"
-                : offer.status === "active"
-                  ? "expired"
-                  : offer.status;
+              const status = getOfferStatus(offer);
               const statusMeta = statusPills[status];
               return (
                 <div
                   key={offer.id}
-                  className="grid grid-cols-[90px_1.5fr_0.7fr_0.9fr_0.8fr_0.7fr_0.7fr_0.7fr] items-center border-b border-slate-100 px-5 py-4 text-sm text-slate-700 last:border-b-0"
+                  className="grid grid-cols-[90px_1.6fr_0.8fr_0.9fr_0.7fr_0.7fr_0.7fr] items-center border-b border-slate-100 px-5 py-4 text-sm text-slate-700 last:border-b-0"
                 >
                   <div className="flex justify-center">
                     <img
-                      src={offer.image}
+                      src={defaultOfferImage}
                       alt={offer.title}
                       className="h-12 w-12 rounded-2xl object-cover shadow-[0_8px_18px_rgba(15,23,42,0.12)]"
                       loading="lazy"
@@ -619,24 +593,14 @@ export default function OffersPage() {
 
                   <div className="flex items-center justify-center gap-1 font-semibold text-emerald-600">
                     <FiPercent className="text-xs" />
-                    <span>{offer.discount}</span>
+                    <span>{formatOfferValue(offer)}</span>
                   </div>
 
                   <div className="text-center text-xs text-slate-500">
                     <p className="font-semibold text-slate-700">
-                      {offer.startDate}
+                      {toDateInputValue(offer.startAt)}
                     </p>
-                    <p>{offer.endDate}</p>
-                  </div>
-
-                  <div className="text-center text-xs text-slate-500">
-                    {offer.usageTotal ? (
-                      <span>
-                        {offer.usageUsed} / {offer.usageTotal}
-                      </span>
-                    ) : (
-                      <span>{offer.usageUsed}</span>
-                    )}
+                    <p>{toDateInputValue(offer.endAt)}</p>
                   </div>
 
                   <div className="flex justify-center">
@@ -650,15 +614,15 @@ export default function OffersPage() {
                   <div className="flex justify-center">
                     <button
                       type="button"
-                      onClick={() => toggleActive(offer.id)}
+                      onClick={() => handleToggleActive(offer)}
                       className={`relative h-6 w-11 rounded-full transition ${
-                        offer.active ? "bg-emerald-500" : "bg-slate-200"
+                        offer.isActive ? "bg-emerald-500" : "bg-slate-200"
                       }`}
-                      aria-pressed={offer.active}
+                      aria-pressed={offer.isActive}
                     >
                       <span
                         className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                          offer.active ? "left-5" : "left-0.5"
+                          offer.isActive ? "left-5" : "left-0.5"
                         }`}
                       />
                     </button>
@@ -702,3 +666,4 @@ export default function OffersPage() {
     </div>
   );
 }
+

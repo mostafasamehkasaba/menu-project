@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FiBell, FiGlobe, FiPlus, FiSearch } from "react-icons/fi";
+import { useRouter } from "next/navigation";
+import { FiBell, FiGlobe, FiLogOut, FiPlus, FiSearch } from "react-icons/fi";
+import { clearAccessToken } from "../services/api-client";
 
 export default function DashboardNavbar() {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
@@ -29,6 +32,14 @@ export default function DashboardNavbar() {
       }
       return next;
     });
+  };
+
+  const handleLogout = () => {
+    clearAccessToken();
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("restaurant_refresh_token");
+    }
+    router.replace("/login");
   };
 
   return (
@@ -73,6 +84,15 @@ export default function DashboardNavbar() {
           <button className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 transition hover:border-emerald-200 hover:text-emerald-600">
             <FiBell />
           </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:text-rose-600"
+            aria-label="تسجيل الخروج"
+            title="تسجيل الخروج"
+          >
+            <FiLogOut />
+          </button>
           <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">
             <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-white">
               أ
@@ -84,3 +104,4 @@ export default function DashboardNavbar() {
     </header>
   );
 }
+

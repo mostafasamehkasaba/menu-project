@@ -1,12 +1,10 @@
-﻿"use client";
+"use client";
 
-import { useMemo, useState } from "react";
-import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import {
   FiChevronDown,
   FiEdit2,
   FiMail,
-  FiPhone,
   FiPlus,
   FiSearch,
   FiShield,
@@ -14,206 +12,238 @@ import {
   FiUserCheck,
   FiUserMinus,
 } from "react-icons/fi";
+import {
+  createUser,
+  deleteUser,
+  fetchUsers,
+  toggleUserActive,
+  updateUser,
+  type ApiUser,
+} from "../../services/admin-api";
 
-const summaryCards = [
-  {
-    title: "إجمالي المستخدمين",
-    value: "8",
-    tone: "bg-emerald-50 text-emerald-600",
-    icon: <FiShield />,
-  },
-  {
-    title: "المستخدمون النشطون",
-    value: "6",
-    tone: "bg-emerald-50 text-emerald-600",
-    icon: <FiUserCheck />,
-  },
-  {
-    title: "الأدمن",
-    value: "3",
-    tone: "bg-slate-100 text-slate-700",
-    icon: <FiUserCheck />,
-  },
-  {
-    title: "المستخدمون المعلّقون",
-    value: "1",
-    tone: "bg-rose-50 text-rose-600",
-    icon: <FiUserMinus />,
-  },
-];
+type Role = ApiUser["role"];
 
-type User = {
-  id: number;
-  name: string;
-  joined: string;
+type UserForm = {
+  full_name: string;
   email: string;
-  phone: string;
-  role: string;
-  lastLogin: string;
-  active: boolean;
-  avatar: string;
+  role: Role;
+  password: string;
+  is_active: boolean;
 };
 
-const initialUsers: User[] = [
-  {
-    id: 1,
-    name: "أحمد محمد",
-    joined: "15-01-2024",
-    email: "ahmed@alwaha.com",
-    phone: "966+ 123 50 9566",
-    role: "مدير النظام",
-    lastLogin: "14:30 2026-02-03",
-    active: true,
-    avatar:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=60",
-  },
-  {
-    id: 2,
-    name: "سارة أحمد",
-    joined: "20-03-2024",
-    email: "sarah@alwaha.com",
-    phone: "966+ 234 55 966",
-    role: "مدير",
-    lastLogin: "13:15 2026-02-03",
-    active: true,
-    avatar:
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=120&auto=format&fit=crop&q=60",
-  },
-  {
-    id: 3,
-    name: "خالد عبدالله",
-    joined: "10-06-2024",
-    email: "khaled@alwaha.com",
-    phone: "966+ 345 54 966",
-    role: "نادل",
-    lastLogin: "12:00 2026-02-03",
-    active: true,
-    avatar:
-      "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&auto=format&fit=crop&q=60",
-  },
-  {
-    id: 4,
-    name: "فاطمة حسن",
-    joined: "05-08-2024",
-    email: "fatima@alwaha.com",
-    phone: "966+ 456 50 966",
-    role: "كاشير",
-    lastLogin: "11:30 2026-02-03",
-    active: true,
-    avatar:
-      "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=120&auto=format&fit=crop&q=60&fit=facearea&facepad=2",
-  },
-  {
-    id: 5,
-    name: "محمد علي",
-    joined: "20-11-2023",
-    email: "mohammed@alwaha.com",
-    phone: "966+ 567 55 966",
-    role: "طباخ",
-    lastLogin: "10:00 2026-02-03",
-    active: true,
-    avatar:
-      "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=120&auto=format&fit=crop&q=60",
-  },
-];
+const roleLabels: Record<Role, string> = {
+  OWNER: "مالك",
+  MANAGER: "مدير",
+  STAFF: "موظف",
+};
+
+const getInitials = (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "م";
+  }
+  const parts = trimmed.split(/\s+/).slice(0, 2);
+  return parts.map((part) => part[0]).join("");
+};
+
+const formatDateTime = (value?: string) => {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString("ar-EG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+};
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<ApiUser[]>([]);
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
-  const [roleFilter, setRoleFilter] = useState<"all" | User["role"]>("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({
-    name: "",
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState<UserForm>({
+    full_name: "",
     email: "",
-    phone: "",
-    role: "نادل",
+    role: "STAFF",
+    password: "",
+    is_active: true,
   });
+
+  useEffect(() => {
+    const load = async () => {
+      setLoadError(null);
+      const data = await fetchUsers();
+      if (!data) {
+        setLoadError("تعذر تحميل المستخدمين من الباك. تأكد من الاتصال والتوكن.");
+        setUsers([]);
+        return;
+      }
+      setUsers(data);
+    };
+    load();
+  }, []);
 
   const roleOptions = useMemo(() => {
     return Array.from(new Set(users.map((user) => user.role)));
   }, [users]);
 
   const filteredUsers = useMemo(() => {
+    const trimmed = search.trim().toLowerCase();
     return users.filter((user) => {
       const matchesStatus =
         statusFilter === "all" ||
-        (statusFilter === "active" ? user.active : !user.active);
-      const matchesRole =
-        roleFilter === "all" || user.role === roleFilter;
-      return matchesStatus && matchesRole;
+        (statusFilter === "active" ? user.is_active : !user.is_active);
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      if (!matchesStatus || !matchesRole) {
+        return false;
+      }
+      if (!trimmed) {
+        return true;
+      }
+      return (
+        user.full_name.toLowerCase().includes(trimmed) ||
+        user.email.toLowerCase().includes(trimmed)
+      );
     });
-  }, [users, statusFilter, roleFilter]);
+  }, [users, statusFilter, roleFilter, search]);
 
-  const toggleActive = (id: number) => {
-    setUsers((prev: User[]) =>
-      prev.map((user: User) =>
-        user.id === id ? { ...user, active: !user.active } : user
-      )
-    );
+  const summary = useMemo(() => {
+    const total = users.length;
+    const active = users.filter((user) => user.is_active).length;
+    const owners = users.filter((user) => user.role === "OWNER").length;
+    const inactive = total - active;
+    return { total, active, owners, inactive };
+  }, [users]);
+
+  const summaryCards = [
+    {
+      title: "إجمالي المستخدمين",
+      value: String(summary.total),
+      tone: "bg-emerald-50 text-emerald-600",
+      icon: <FiShield />,
+    },
+    {
+      title: "المستخدمون النشطون",
+      value: String(summary.active),
+      tone: "bg-emerald-50 text-emerald-600",
+      icon: <FiUserCheck />,
+    },
+    {
+      title: "المالكون",
+      value: String(summary.owners),
+      tone: "bg-slate-100 text-slate-700",
+      icon: <FiUserCheck />,
+    },
+    {
+      title: "المستخدمون غير النشطين",
+      value: String(summary.inactive),
+      tone: "bg-rose-50 text-rose-600",
+      icon: <FiUserMinus />,
+    },
+  ];
+
+  const resetForm = () => {
+    setForm({
+      full_name: "",
+      email: "",
+      role: "STAFF",
+      password: "",
+      is_active: true,
+    });
   };
 
-  const handleAddUser = () => {
-    if (!form.name.trim() || !form.email.trim() || !form.phone.trim()) {
+  const toggleActive = async (user: ApiUser) => {
+    setActionError(null);
+    try {
+      const updated = await toggleUserActive(user.id);
+      setUsers((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ??
+        "تعذر تحديث حالة المستخدم.";
+      setActionError(message);
+    }
+  };
+
+  const handleSaveUser = async () => {
+    if (!form.full_name.trim() || !form.email.trim()) {
+      setActionError("أدخل الاسم والبريد الإلكتروني.");
       return;
     }
 
-    if (editingId !== null) {
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.id === editingId
-            ? {
-                ...user,
-                name: form.name.trim(),
-                email: form.email.trim(),
-                phone: form.phone.trim(),
-                role: form.role,
-              }
-            : user
-        )
-      );
-    } else {
-      const nextId = users.length
-        ? Math.max(...users.map((user) => user.id)) + 1
-        : 1;
-
-      setUsers((prev) => [
-        {
-          id: nextId,
-          name: form.name.trim(),
-          joined: "03-02-2026",
+    setActionError(null);
+    try {
+      if (editingId !== null) {
+        const updated = await updateUser(editingId, {
+          full_name: form.full_name.trim(),
           email: form.email.trim(),
-          phone: form.phone.trim(),
           role: form.role,
-          lastLogin: "-",
-          active: true,
-          avatar:
-            "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=120&auto=format&fit=crop&q=60&fit=facearea&facepad=2",
-        },
-        ...prev,
-      ]);
-    }
+          is_active: form.is_active,
+        });
+        setUsers((prev) =>
+          prev.map((user) => (user.id === updated.id ? updated : user))
+        );
+      } else {
+        if (!form.password.trim()) {
+          setActionError("أدخل كلمة مرور للمستخدم الجديد.");
+          return;
+        }
+        const created = await createUser({
+          full_name: form.full_name.trim(),
+          email: form.email.trim(),
+          role: form.role,
+          password: form.password,
+          is_active: form.is_active,
+        });
+        setUsers((prev) => [created, ...prev]);
+      }
 
-    setForm({ name: "", email: "", phone: "", role: "نادل" });
-    setEditingId(null);
-    setShowForm(false);
+      resetForm();
+      setEditingId(null);
+      setShowForm(false);
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ??
+        "تعذر حفظ المستخدم.";
+      setActionError(message);
+    }
   };
 
-  const handleEdit = (user: User) => {
+  const handleEdit = (user: ApiUser) => {
     setEditingId(user.id);
     setForm({
-      name: user.name,
+      full_name: user.full_name,
       email: user.email,
-      phone: user.phone,
       role: user.role,
+      password: "",
+      is_active: user.is_active,
     });
     setShowForm(true);
   };
 
-  const handleDelete = (id: number) => {
-    setUsers((prev) => prev.filter((user) => user.id !== id));
+  const handleDelete = async (id: number) => {
+    setActionError(null);
+    try {
+      await deleteUser(id);
+      setUsers((prev) => prev.filter((user) => user.id !== id));
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ??
+        "تعذر حذف المستخدم.";
+      setActionError(message);
+    }
   };
 
   return (
@@ -232,7 +262,7 @@ export default function UsersPage() {
           type="button"
           onClick={() => {
             setEditingId(null);
-            setForm({ name: "", email: "", phone: "", role: "نادل" });
+            resetForm();
             setShowForm((prev) => !prev);
           }}
           className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
@@ -242,6 +272,12 @@ export default function UsersPage() {
         </button>
       </header>
 
+      {loadError ? (
+        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+          {loadError}
+        </div>
+      ) : null}
+
       {showForm ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid gap-4 md:grid-cols-4">
@@ -249,9 +285,9 @@ export default function UsersPage() {
               الاسم
               <input
                 type="text"
-                value={form.name}
+                value={form.full_name}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, name: event.target.value }))
+                  setForm((prev) => ({ ...prev, full_name: event.target.value }))
                 }
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
               />
@@ -268,33 +304,62 @@ export default function UsersPage() {
               />
             </label>
             <label className="block text-right text-sm text-slate-600">
-              الهاتف
-              <input
-                type="text"
-                value={form.phone}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, phone: event.target.value }))
-                }
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
-              />
-            </label>
-            <label className="block text-right text-sm text-slate-600">
               الدور
               <select
                 value={form.role}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, role: event.target.value }))
+                  setForm((prev) => ({
+                    ...prev,
+                    role: event.target.value as Role,
+                  }))
                 }
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
               >
-                <option value="مدير النظام">مدير النظام</option>
-                <option value="مدير">مدير</option>
-                <option value="نادل">نادل</option>
-                <option value="كاشير">كاشير</option>
-                <option value="طباخ">طباخ</option>
+                <option value="OWNER">مالك</option>
+                <option value="MANAGER">مدير</option>
+                <option value="STAFF">موظف</option>
               </select>
             </label>
+            {editingId === null ? (
+              <label className="block text-right text-sm text-slate-600">
+                كلمة المرور
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, password: event.target.value }))
+                  }
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
+                />
+              </label>
+            ) : null}
           </div>
+
+          <label className="mt-4 flex items-center gap-3 text-sm text-slate-600">
+            <span>نشط</span>
+            <button
+              type="button"
+              onClick={() =>
+                setForm((prev) => ({ ...prev, is_active: !prev.is_active }))
+              }
+              aria-pressed={form.is_active}
+              className={`relative h-6 w-11 rounded-full ${
+                form.is_active ? "bg-emerald-500" : "bg-slate-200"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow ${
+                  form.is_active ? "left-5" : "left-0.5"
+                }`}
+              />
+            </button>
+          </label>
+
+          {actionError ? (
+            <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-2 text-right text-sm text-rose-600">
+              {actionError}
+            </div>
+          ) : null}
 
           <div className="mt-4 flex justify-end gap-3">
             <button
@@ -306,7 +371,7 @@ export default function UsersPage() {
             </button>
             <button
               type="button"
-              onClick={handleAddUser}
+              onClick={handleSaveUser}
               className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
             >
               {editingId !== null ? "حفظ التعديل" : "إضافة المستخدم"}
@@ -359,14 +424,14 @@ export default function UsersPage() {
             <select
               value={roleFilter}
               onChange={(event) =>
-                setRoleFilter(event.target.value as "all" | User["role"])
+                setRoleFilter(event.target.value as "all" | Role)
               }
               className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-700"
             >
               <option value="all">جميع الأدوار</option>
               {roleOptions.map((role) => (
                 <option key={role} value={role}>
-                  {role}
+                  {roleLabels[role]}
                 </option>
               ))}
             </select>
@@ -378,45 +443,48 @@ export default function UsersPage() {
           <FiSearch />
           <input
             type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="ابحث عن مستخدم..."
             className="w-56 bg-transparent text-right outline-none"
           />
         </div>
       </div>
 
+      {actionError ? (
+        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+          {actionError}
+        </div>
+      ) : null}
+
       <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-900">قائمة المستخدمين</h2>
         </div>
 
-        <div className="grid grid-cols-[1.4fr_1.2fr_1fr_1fr_1fr_0.7fr_0.9fr] border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-600">
+        <div className="grid grid-cols-[1.4fr_1.4fr_1fr_1fr_0.7fr_0.9fr] border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-600">
           <div className="text-center">المستخدم</div>
           <div className="text-center">البريد الإلكتروني</div>
-          <div className="text-center">الهاتف</div>
           <div className="text-center">الدور</div>
-          <div className="text-center">آخر دخول</div>
+          <div className="text-center">تاريخ الإنشاء</div>
           <div className="text-center">الحالة</div>
           <div className="text-center">الإجراءات</div>
         </div>
 
-        {filteredUsers.map((user: User) => (
+        {filteredUsers.map((user) => (
           <div
             key={user.id}
-            className="grid grid-cols-[1.4fr_1.2fr_1fr_1fr_1fr_0.7fr_0.9fr] items-center border-b border-slate-100 px-5 py-3 text-sm text-slate-700 last:border-b-0"
+            className="grid grid-cols-[1.4fr_1.4fr_1fr_1fr_0.7fr_0.9fr] items-center border-b border-slate-100 px-5 py-3 text-sm text-slate-700 last:border-b-0"
           >
             <div className="flex items-center justify-center gap-3">
-              <Image
-                src={user.avatar}
-                alt={user.name}
-                width={40}
-                height={40}
-                className="h-10 w-10 rounded-full object-cover"
-              />
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-emerald-500 text-white">
+                {getInitials(user.full_name)}
+              </span>
               <div className="text-right">
-                <p className="font-semibold text-slate-900">{user.name}</p>
-                <p className="text-xs text-slate-400">
-                  انضم في {user.joined}
+                <p className="font-semibold text-slate-900">
+                  {user.full_name}
                 </p>
+                <p className="text-xs text-slate-400">#{user.id}</p>
               </div>
             </div>
 
@@ -425,37 +493,34 @@ export default function UsersPage() {
               <FiMail className="text-slate-400" />
             </div>
 
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-slate-600">{user.phone}</span>
-              <FiPhone className="text-slate-400" />
-            </div>
-
             <div className="flex justify-center">
               <span
                 className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  user.role === "مدير النظام"
+                  user.role === "OWNER"
                     ? "bg-rose-50 text-rose-600"
                     : "bg-emerald-50 text-emerald-600"
                 }`}
               >
-                {user.role}
+                {roleLabels[user.role]}
               </span>
             </div>
 
-            <div className="text-center text-slate-600">{user.lastLogin}</div>
+            <div className="text-center text-slate-600">
+              {formatDateTime(user.created_at)}
+            </div>
 
             <div className="flex justify-center">
               <button
                 type="button"
-                onClick={() => toggleActive(user.id)}
+                onClick={() => toggleActive(user)}
                 className={`relative h-6 w-11 rounded-full transition ${
-                  user.active ? "bg-emerald-500" : "bg-slate-200"
+                  user.is_active ? "bg-emerald-500" : "bg-slate-200"
                 }`}
-                aria-pressed={user.active}
+                aria-pressed={user.is_active}
               >
                 <span
                   className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                    user.active ? "left-5" : "left-0.5"
+                    user.is_active ? "left-5" : "left-0.5"
                   }`}
                 />
               </button>
@@ -483,3 +548,4 @@ export default function UsersPage() {
     </div>
   );
 }
+

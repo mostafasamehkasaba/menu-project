@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Cairo } from "next/font/google";
 import {
   FiChevronDown,
@@ -12,68 +12,79 @@ import {
   FiTrash2,
   FiUsers,
 } from "react-icons/fi";
+import {
+  changeTableStatus,
+  createTable,
+  deleteTable,
+  fetchTables,
+  updateTable,
+  type ApiTable,
+} from "../../services/admin-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
 });
 
-type TableStatus = "available" | "occupied" | "reserved";
+type TableStatus = ApiTable["status"];
 
-type Table = {
-  id: number;
-  seats: number;
-  status: TableStatus;
-  order: number | null;
-  badge?: string;
+type StatusStyle = {
+  pill: string;
+  button: string;
+  label: string;
 };
 
-const statusStyles: Record<
-  TableStatus,
-  { pill: string; button: string; label: string }
-> = {
-  available: {
+const statusStyles: Record<TableStatus, StatusStyle> = {
+  AVAILABLE: {
     pill: "bg-emerald-50 text-emerald-600",
     button: "bg-emerald-600 text-white",
     label: "متاح",
   },
-  occupied: {
+  OCCUPIED: {
     pill: "bg-rose-50 text-rose-600",
     button: "bg-white text-slate-700 border border-slate-200",
     label: "مشغول",
   },
-  reserved: {
+  RESERVED: {
     pill: "bg-blue-50 text-blue-600",
     button: "bg-white text-slate-700 border border-slate-200",
     label: "محجوز",
   },
 };
 
-const tables: Table[] = [
-  { id: 1, seats: 4, status: "available", order: null },
-  { id: 2, seats: 2, status: "occupied", order: 1234 },
-  { id: 3, seats: 6, status: "occupied", order: 1235, badge: "1 طلب" },
-  { id: 4, seats: 4, status: "reserved", order: null },
-  { id: 5, seats: 8, status: "occupied", order: 1236 },
-  { id: 6, seats: 2, status: "available", order: null },
-  { id: 7, seats: 4, status: "occupied", order: 1237, badge: "2 طلب" },
-  { id: 8, seats: 6, status: "available", order: null },
-  { id: 9, seats: 4, status: "reserved", order: null },
-  { id: 10, seats: 2, status: "available", order: null },
-  { id: 11, seats: 8, status: "occupied", order: 1238 },
-  { id: 12, seats: 4, status: "available", order: null },
-];
+const nextStatusMap: Record<TableStatus, TableStatus> = {
+  AVAILABLE: "OCCUPIED",
+  OCCUPIED: "RESERVED",
+  RESERVED: "AVAILABLE",
+};
 
 export default function TablesPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | TableStatus>("all");
-  const [rows, setRows] = useState<Table[]>(tables);
+  const [rows, setRows] = useState<ApiTable[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [form, setForm] = useState({
-    seats: "4",
-    status: "available",
+    number: "",
+    capacity: "4",
+    status: "AVAILABLE" as TableStatus,
   });
+
+  useEffect(() => {
+    const load = async () => {
+      setLoadError(null);
+      const data = await fetchTables();
+      if (!data) {
+        setLoadError("تعذر تحميل الطاولات من الباك. تأكد من الاتصال والتوكن.");
+        setRows([]);
+        return;
+      }
+      setRows(data);
+    };
+    load();
+  }, []);
 
   const filteredTables = useMemo(() => {
     return rows.filter(
@@ -81,55 +92,90 @@ export default function TablesPage() {
     );
   }, [rows, statusFilter]);
 
-  const handleSaveTable = () => {
-    const seatsValue = Number(form.seats);
-    if (!Number.isFinite(seatsValue) || seatsValue <= 0) {
+  const handleSaveTable = async () => {
+    const numberValue = Number(form.number);
+    const capacityValue = Number(form.capacity);
+    if (!Number.isFinite(numberValue) || numberValue <= 0) {
+      setActionError("رقم الطاولة غير صالح.");
       return;
     }
-    if (editingId !== null) {
-      setRows((prev) =>
-        prev.map((table) =>
-          table.id === editingId
-            ? {
-                ...table,
-                seats: seatsValue,
-                status: form.status as TableStatus,
-              }
-            : table
-        )
-      );
-    } else {
-      const nextId = rows.length
-        ? Math.max(...rows.map((table) => table.id)) + 1
-        : 1;
-      const nextTable: Table = {
-        id: nextId,
-        seats: seatsValue,
-        status: form.status as TableStatus,
-        order: null,
-      };
-      setRows((prev) => [...prev, nextTable]);
+    if (!Number.isFinite(capacityValue) || capacityValue <= 0) {
+      setActionError("سعة الطاولة غير صالحة.");
+      return;
     }
-    setShowForm(false);
-    setEditingId(null);
-    setForm({ seats: "4", status: "available" });
+
+    setActionError(null);
+    try {
+      if (editingId !== null) {
+        const updated = await updateTable(editingId, {
+          number: numberValue,
+          capacity: capacityValue,
+          status: form.status,
+        });
+        setRows((prev) =>
+          prev.map((table) => (table.id === updated.id ? updated : table))
+        );
+      } else {
+        const created = await createTable({
+          number: numberValue,
+          capacity: capacityValue,
+          status: form.status,
+        });
+        setRows((prev) => [...prev, created]);
+      }
+
+      setShowForm(false);
+      setEditingId(null);
+      setForm({ number: "", capacity: "4", status: "AVAILABLE" });
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ??
+        "تعذر حفظ الطاولة.";
+      setActionError(message);
+    }
   };
 
-  const handleEdit = (table: Table) => {
+  const handleEdit = (table: ApiTable) => {
     setEditingId(table.id);
     setForm({
-      seats: String(table.seats),
+      number: String(table.number),
+      capacity: String(table.capacity),
       status: table.status,
     });
     setShowForm(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteTarget === null) {
       return;
     }
-    setRows((prev) => prev.filter((table) => table.id !== deleteTarget));
-    setDeleteTarget(null);
+    setActionError(null);
+    try {
+      await deleteTable(deleteTarget);
+      setRows((prev) => prev.filter((table) => table.id !== deleteTarget));
+      setDeleteTarget(null);
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ??
+        "تعذر حذف الطاولة.";
+      setActionError(message);
+    }
+  };
+
+  const handleToggleStatus = async (table: ApiTable) => {
+    const nextStatus = nextStatusMap[table.status];
+    setActionError(null);
+    try {
+      const updated = await changeTableStatus(table.id, nextStatus);
+      setRows((prev) =>
+        prev.map((row) => (row.id === updated.id ? updated : row))
+      );
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ??
+        "تعذر تحديث حالة الطاولة.";
+      setActionError(message);
+    }
   };
 
   return (
@@ -151,9 +197,9 @@ export default function TablesPage() {
                 className="appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2 pl-9 text-sm font-semibold text-slate-600"
               >
                 <option value="all">الكل</option>
-                <option value="available">{statusStyles.available.label}</option>
-                <option value="occupied">{statusStyles.occupied.label}</option>
-                <option value="reserved">{statusStyles.reserved.label}</option>
+                <option value="AVAILABLE">{statusStyles.AVAILABLE.label}</option>
+                <option value="OCCUPIED">{statusStyles.OCCUPIED.label}</option>
+                <option value="RESERVED">{statusStyles.RESERVED.label}</option>
               </select>
               <FiChevronDown className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
@@ -172,7 +218,7 @@ export default function TablesPage() {
               type="button"
               onClick={() => {
                 setEditingId(null);
-                setForm({ seats: "4", status: "available" });
+                setForm({ number: "", capacity: "4", status: "AVAILABLE" });
                 setShowForm((prev) => !prev);
               }}
               className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
@@ -183,16 +229,33 @@ export default function TablesPage() {
           </div>
         </header>
 
+        {loadError ? (
+          <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+            {loadError}
+          </div>
+        ) : null}
+
         {showForm ? (
           <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="grid gap-4 md:grid-cols-3">
               <label className="block text-right text-sm text-slate-600">
+                رقم الطاولة
+                <input
+                  type="number"
+                  value={form.number}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, number: event.target.value }))
+                  }
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
+                />
+              </label>
+              <label className="block text-right text-sm text-slate-600">
                 عدد المقاعد
                 <input
                   type="number"
-                  value={form.seats}
+                  value={form.capacity}
                   onChange={(event) =>
-                    setForm((prev) => ({ ...prev, seats: event.target.value }))
+                    setForm((prev) => ({ ...prev, capacity: event.target.value }))
                   }
                   className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
                 />
@@ -202,16 +265,25 @@ export default function TablesPage() {
                 <select
                   value={form.status}
                   onChange={(event) =>
-                    setForm((prev) => ({ ...prev, status: event.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      status: event.target.value as TableStatus,
+                    }))
                   }
                   className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
                 >
-                  <option value="available">{statusStyles.available.label}</option>
-                  <option value="occupied">{statusStyles.occupied.label}</option>
-                  <option value="reserved">{statusStyles.reserved.label}</option>
+                  <option value="AVAILABLE">{statusStyles.AVAILABLE.label}</option>
+                  <option value="OCCUPIED">{statusStyles.OCCUPIED.label}</option>
+                  <option value="RESERVED">{statusStyles.RESERVED.label}</option>
                 </select>
               </label>
             </div>
+
+            {actionError ? (
+              <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-2 text-right text-sm text-rose-600">
+                {actionError}
+              </div>
+            ) : null}
 
             <div className="mt-4 flex justify-end gap-3">
               <button
@@ -281,10 +353,12 @@ export default function TablesPage() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">طاولة {table.id}</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      طاولة {table.number}
+                    </p>
                     <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                       <FiUsers />
-                      {table.seats} أشخاص
+                      {table.capacity} أشخاص
                     </p>
                   </div>
                   <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
@@ -293,9 +367,9 @@ export default function TablesPage() {
                 </div>
 
                 <div className="mt-3 flex items-center justify-between">
-                  {table.badge ? (
+                  {table.current_order ? (
                     <span className="rounded-full bg-rose-500 px-2.5 py-1 text-xs font-semibold text-white">
-                      {table.badge}
+                      طلب #{table.current_order}
                     </span>
                   ) : (
                     <span className="text-xs text-slate-400">‏</span>
@@ -305,8 +379,8 @@ export default function TablesPage() {
                   </span>
                 </div>
 
-                {table.order ? (
-                  <p className="mt-2 text-xs text-slate-500">الطلب: {table.order}#</p>
+                {table.current_order ? (
+                  <p className="mt-2 text-xs text-slate-500">الطلب: {table.current_order}#</p>
                 ) : null}
 
                 <div className="mt-auto grid gap-2">
@@ -329,6 +403,7 @@ export default function TablesPage() {
                   </div>
                   <button
                     type="button"
+                    onClick={() => handleToggleStatus(table)}
                     className={`w-full rounded-xl px-3 py-2 text-sm font-semibold ${style.button}`}
                   >
                     تغيير الحالة
@@ -342,3 +417,4 @@ export default function TablesPage() {
     </div>
   );
 }
+

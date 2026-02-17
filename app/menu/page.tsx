@@ -12,7 +12,7 @@ import { formatCurrency, getLocalizedText } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
 import { useSearchParams } from "next/navigation";
 import ChatbotSection from "../components/chatbot-section";
-import { fetchMenuCatalog } from "../lib/menu-api";
+import { fetchMenuCatalog } from "../services/menu-api";
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
@@ -407,4 +407,5 @@ export default function MenuPage() {
     </Suspense>
   );
 }
+
 

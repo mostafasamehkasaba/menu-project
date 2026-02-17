@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -75,7 +75,7 @@ export default function DashboardSidebar() {
 
       <div className="mt-4 flex items-center justify-between text-xs text-slate-400 lg:mt-6">
         <button className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500">
-          ؟
+          ع
         </button>
         <span>v1.0.0</span>
       </div>
