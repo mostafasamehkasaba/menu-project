@@ -7,6 +7,7 @@ export default function BottomNavGuard() {
   const pathname = usePathname();
 
   const adminRoutes = [
+    "/login",
     "/dashboard",
     "/products",
     "/categories",
