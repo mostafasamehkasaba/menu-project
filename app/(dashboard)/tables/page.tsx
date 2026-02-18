@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, useEffect } from "react";
 import { Cairo } from "next/font/google";
@@ -171,6 +171,29 @@ export default function TablesPage() {
         prev.map((row) => (row.id === updated.id ? updated : row))
       );
     } catch (error) {
+      const status =
+        typeof error === "object" && error && "status" in error
+          ? Number((error as { status?: number }).status)
+          : null;
+      if (status === 400 || status === 404 || status === 405) {
+        try {
+          const updated = await updateTable(table.id, {
+            number: table.number,
+            capacity: table.capacity,
+            status: nextStatus,
+          });
+          setRows((prev) =>
+            prev.map((row) => (row.id === updated.id ? updated : row))
+          );
+          return;
+        } catch (fallbackError) {
+          const message =
+            (fallbackError as { message?: string })?.message ??
+            "تعذر تحديث حالة الطاولة.";
+          setActionError(message);
+          return;
+        }
+      }
       const message =
         (error as { message?: string })?.message ??
         "تعذر تحديث حالة الطاولة.";
@@ -403,10 +426,10 @@ export default function TablesPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleToggleStatus(table)}
+                    onClick={() => handleEdit(table)}
                     className={`w-full rounded-xl px-3 py-2 text-sm font-semibold ${style.button}`}
                   >
-                    تغيير الحالة
+                    تعديل الحالة
                   </button>
                 </div>
               </article>
@@ -417,4 +440,6 @@ export default function TablesPage() {
     </div>
   );
 }
+
+
 

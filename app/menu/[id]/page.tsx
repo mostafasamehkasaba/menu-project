@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
 import { addToCart } from "../../lib/cart";
-import { menuItems, type MenuItem } from "../../lib/menu-data";
+import type { MenuItem } from "../../lib/menu-data";
 import { formatCurrency, getLocalizedText } from "../../lib/i18n";
 import { useLanguage } from "../../components/language-provider";
 import { fetchMenuItemById } from "../../services/menu-api";
@@ -14,11 +14,6 @@ const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
 });
-
-const fallbackExtras = [
-  { id: "extra-1", label: { ar: "دجاج مشوي", en: "Grilled chicken" }, price: 30 },
-  { id: "extra-2", label: { ar: "جمبري", en: "Shrimp" }, price: 50 },
-];
 
 export default function MenuItemPage() {
   const params = useParams();
@@ -37,7 +32,7 @@ export default function MenuItemPage() {
     count: number;
   } | null>(null);
 
-  const extras = useMemo(() => item?.extras ?? fallbackExtras, [item]);
+  const extras = useMemo(() => item?.extras ?? [], [item]);
   const extrasTotal = useMemo(
     () =>
       extras.reduce(
@@ -69,13 +64,12 @@ export default function MenuItemPage() {
       }
 
       const apiItem = await fetchMenuItemById(itemId);
-      const fallbackItem = menuItems.find((entry) => entry.id === itemId) ?? null;
 
       if (!mounted) {
         return;
       }
 
-      setItem(apiItem ?? fallbackItem);
+      setItem(apiItem);
       setIsLoading(false);
     };
 
@@ -143,7 +137,7 @@ export default function MenuItemPage() {
             href="/menu"
             className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-orange-500 shadow-[0_12px_24px_rgba(15,23,42,0.12)]"
           >
-            ←
+            â†گ
           </Link>
           <h1 className="text-lg font-semibold sm:text-xl">
             {getLocalizedText(item.name, lang)}
@@ -170,39 +164,41 @@ export default function MenuItemPage() {
               {getLocalizedText(item.desc, lang)}
             </p>
 
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-slate-700">
-                {t("extras")}
-              </p>
+            {extras.length > 0 && (
               <div className="space-y-3">
-                {extras.map((extra) => (
-                  <label
-                    key={extra.id}
-                    className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-sm"
-                  >
-                    <span className="text-slate-700">
-                      {getLocalizedText(extra.label, lang)}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-orange-500">
-                        {formatCurrency(extra.price, lang)}+
+                <p className="text-sm font-semibold text-slate-700">
+                  {t("extras")}
+                </p>
+                <div className="space-y-3">
+                  {extras.map((extra) => (
+                    <label
+                      key={extra.id}
+                      className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+                    >
+                      <span className="text-slate-700">
+                        {getLocalizedText(extra.label, lang)}
                       </span>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(selectedExtras[extra.id])}
-                        onChange={() =>
-                          setSelectedExtras((prev) => ({
-                            ...prev,
-                            [extra.id]: !prev[extra.id],
-                          }))
-                        }
-                        className="h-5 w-5 rounded border-slate-300"
-                      />
-                    </div>
-                  </label>
-                ))}
+                      <div className="flex items-center gap-3">
+                        <span className="text-orange-500">
+                          {formatCurrency(extra.price, lang)}+
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(selectedExtras[extra.id])}
+                          onChange={() =>
+                            setSelectedExtras((prev) => ({
+                              ...prev,
+                              [extra.id]: !prev[extra.id],
+                            }))
+                          }
+                          className="h-5 w-5 rounded border-slate-300"
+                        />
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="space-y-3">
               <p className="text-sm font-semibold text-slate-700">
@@ -275,3 +271,4 @@ export default function MenuItemPage() {
     </div>
   );
 }
+

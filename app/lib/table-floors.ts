@@ -6,7 +6,7 @@ export type TableFloor = {
   id: string;
   label: TranslationKey;
   icon: string;
-  tables: { id: number; seats: number; status: TableStatus }[];
+  tables: { id: number; number?: number | null; seats: number; status: TableStatus }[];
 };
 
 export const tableFloors: TableFloor[] = [

@@ -1,4 +1,4 @@
-export type Language = "ar" | "en";
+﻿export type Language = "ar" | "en";
 
 export type LocalizedText = {
   ar: string;
@@ -12,6 +12,9 @@ export const translations = {
     viewMenuOnly: "View menu",
     orderFromTable: "Order from table",
     selectTable: "Select a table",
+    tablesLoading: "Loading tables...",
+    invalidDateTime: "Invalid date or time",
+    reservationSubmitError: "Couldn't submit the reservation",
     confirm: "Confirm",
     cancel: "Cancel",
     noAvailableTables: "No available tables right now",
@@ -25,6 +28,10 @@ export const translations = {
     additionalOrder: "Additional order",
     orderIssue: "Order issue",
     send: "Send",
+    sending: "Sending...",
+    callWaiterSuccess: "Waiter request sent",
+    callWaiterError: "Couldn't send waiter request",
+    callWaiterTableMissing: "Table number is missing",
     language: "Language",
     languageEnglish: "English",
     languageArabic: "Arabic",
@@ -42,6 +49,8 @@ export const translations = {
     backToAccount: "Back to account",
     myCart: "My cart",
     emptyCart: "Your cart is empty",
+    emptyMenuTitle: "No items yet",
+    emptyMenuMessage: "Products you add from the dashboard will appear here.",
     generalNotes: "General notes",
     orderType: "Order type",
     takeaway: "Takeaway",
@@ -73,6 +82,9 @@ export const translations = {
     expiry: "Expiry",
     cvv: "CVV",
     payNow: "Pay now",
+    placingOrder: "Placing order...",
+    orderSubmitError: "Couldn't place the order",
+    orderSubmitTableMissing: "Table number is required for table service",
     orderSuccess: "Order success",
     orderSuccessMessage: "Your payment is confirmed. Thank you!",
     orderNumber: "Order number",
@@ -177,6 +189,9 @@ export const translations = {
     viewMenuOnly: "عرض المنيو",
     orderFromTable: "اطلب من الطاولة",
     selectTable: "اختر طاولة",
+    tablesLoading: "جارٍ تحميل الطاولات...",
+    invalidDateTime: "تاريخ أو وقت غير صالح",
+    reservationSubmitError: "تعذر إرسال الحجز، حاول مرة أخرى",
     confirm: "تأكيد",
     cancel: "إلغاء",
     noAvailableTables: "لا توجد طاولات متاحة حالياً",
@@ -190,6 +205,10 @@ export const translations = {
     additionalOrder: "طلب إضافي",
     orderIssue: "مشكلة في الطلب",
     send: "إرسال",
+    sending: "جارٍ الإرسال...",
+    callWaiterSuccess: "تم إرسال طلب النادل",
+    callWaiterError: "تعذر إرسال طلب النادل",
+    callWaiterTableMissing: "رقم الطاولة غير موجود",
     language: "اللغة",
     languageEnglish: "الإنجليزية",
     languageArabic: "العربية",
@@ -207,6 +226,8 @@ export const translations = {
     backToAccount: "العودة إلى الحساب",
     myCart: "سلتي",
     emptyCart: "السلة فارغة",
+    emptyMenuTitle: "لا توجد منتجات بعد",
+    emptyMenuMessage: "أي منتج تضيفه من الداشبورد هيظهر هنا.",
     generalNotes: "ملاحظات عامة",
     orderType: "نوع الطلب",
     takeaway: "تيك أواي",
@@ -238,6 +259,9 @@ export const translations = {
     expiry: "تاريخ الانتهاء",
     cvv: "رمز التحقق",
     payNow: "ادفع الآن",
+    placingOrder: "جارٍ إرسال الطلب...",
+    orderSubmitError: "تعذر إرسال الطلب",
+    orderSubmitTableMissing: "رقم الطاولة مطلوب لخدمة الطاولة",
     orderSuccess: "تم الدفع بنجاح",
     orderSuccessMessage: "تم تأكيد الدفع. شكرًا لك!",
     orderNumber: "رقم الطلب",
@@ -354,3 +378,4 @@ export const formatCurrency = (
     ? `${formatted} ${translations[lang].currency}`
     : `${translations[lang].currency} ${formatted}`;
 };
+

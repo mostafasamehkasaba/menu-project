@@ -8,31 +8,32 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Cairo } from "next/font/google";
 import type { TranslationKey } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
-import { tableFloors, type TableFloor, type TableStatus } from "../lib/table-floors";
+import { type TableFloor, type TableStatus } from "../lib/table-floors";
+import { createMenuReservation, fetchMenuTables } from "../services/menu-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
 });
 
-const stats: {
+const statsBase: {
   label: TranslationKey;
   value: string;
   color: string;
   icon: string;
 }[] = [
-  { label: "avgWaitTime", value: "15m", color: "text-blue-600", icon: "ًں•‘" },
+  { label: "avgWaitTime", value: "15m", color: "text-blue-600", icon: "🕑" },
   {
     label: "availableTables",
-    value: "8",
+    value: "0",
     color: "text-emerald-600",
-    icon: "ًںھ‘",
+    icon: "🪑",
   },
   {
     label: "todaysBookings",
-    value: "24",
+    value: "0",
     color: "text-orange-600",
-    icon: "ًں“…",
+    icon: "📅",
   },
 ];
 
@@ -51,7 +52,11 @@ const timeSlots = [
   "22:30",
 ];
 
-// tableFloors now comes from lib/table-floors to share with reservations.
+const mapApiStatus = (status?: string | null): TableStatus => {
+  if (status === "RESERVED") return "reserved";
+  if (status === "OCCUPIED") return "occupied";
+  return "available";
+};
 
 function BookPageContent() {
   const { dir, lang, t, toggleLang } = useLanguage();
@@ -63,8 +68,8 @@ function BookPageContent() {
     "availability",
   );
 
-  const [tableFloorsState, setTableFloorsState] =
-    useState<TableFloor[]>(tableFloors);
+  const [tableFloorsState, setTableFloorsState] = useState<TableFloor[]>([]);
+  const [tablesLoading, setTablesLoading] = useState(true);
 
   const [selectedTable, setSelectedTable] = useState<{
     floorId: string;
@@ -79,8 +84,10 @@ function BookPageContent() {
   const [notes, setNotes] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // âœ… NEW: snapshot confirmed booking before resetting fields
+  // NEW: snapshot confirmed booking before resetting fields
   const [confirmed, setConfirmed] = useState<{
     date: string;
     time: string;
@@ -95,6 +102,65 @@ function BookPageContent() {
     guestName.trim().length > 0 &&
     phoneNumber.trim().length > 0 &&
     !!selectedTable;
+
+  const stats = statsBase.map((stat) => {
+    if (stat.label === "availableTables") {
+      const availableCount = tableFloorsState.reduce(
+        (sum, floor) =>
+          sum +
+          floor.tables.filter((table) => table.status === "available").length,
+        0
+      );
+      return { ...stat, value: String(availableCount) };
+    }
+    return stat;
+  });
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadTables = async () => {
+      setTablesLoading(true);
+      const data = await fetchMenuTables();
+      if (!mounted) return;
+
+      if (!data.length) {
+        setTableFloorsState([]);
+        setTablesLoading(false);
+        return;
+      }
+
+      const tables = data
+        .map((table) => {
+          const number =
+            table.number ??
+            table.table_number ??
+            (Number.isFinite(Number(table.code)) ? Number(table.code) : null);
+          return {
+            id: table.id,
+            number: Number.isFinite(number) ? Number(number) : table.id,
+            seats: table.capacity ?? 4,
+            status: mapApiStatus(table.status),
+          };
+        })
+        .sort((a, b) => (a.number ?? a.id) - (b.number ?? b.id));
+
+      setTableFloorsState([
+        {
+          id: "ground",
+          label: "groundFloor",
+          icon: "GF",
+          tables,
+        },
+      ]);
+      setTablesLoading(false);
+    };
+
+    loadTables();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -153,17 +219,27 @@ function BookPageContent() {
     return () => window.clearTimeout(timer);
   }, [showConfirm, router]);
 
-  const handleConfirm = () => {
-    if (!isFormComplete) return;
+  const handleConfirm = async () => {
+    if (!isFormComplete || !selectedTable) return;
+    const startAt = new Date(`${selectedDate}T${selectedTime}:00`);
+    if (Number.isNaN(startAt.getTime())) {
+      setActionError(t("invalidDateTime"));
+      return;
+    }
 
-    // âœ… NEW: take snapshot BEFORE resetting
-    setConfirmed({
-      date: selectedDate,
-      time: selectedTime,
-      guests: guestCount,
-    });
+    setActionError(null);
+    setIsSubmitting(true);
+    try {
+      await createMenuReservation({
+        customer_name: guestName.trim(),
+        phone: phoneNumber.trim(),
+        start_at: startAt.toISOString(),
+        party_size: guestCount,
+        table: selectedTable.tableId,
+        status: "PENDING",
+        notes: notes.trim() || null,
+      });
 
-    if (selectedTable) {
       setTableFloorsState((prev) =>
         prev.map((floor) => {
           if (floor.id !== selectedTable.floorId) return floor;
@@ -178,18 +254,29 @@ function BookPageContent() {
           };
         }),
       );
+
+      // NEW: take snapshot BEFORE resetting
+      setConfirmed({
+        date: selectedDate,
+        time: selectedTime,
+        guests: guestCount,
+      });
+
+      setShowConfirm(true);
+
+      // reset form
+      setSelectedDate("");
+      setSelectedTime("");
+      setGuestName("");
+      setPhoneNumber("");
+      setNotes("");
+      setGuestCount(2);
+      setSelectedTable(null);
+    } catch {
+      setActionError(t("reservationSubmitError"));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setShowConfirm(true);
-
-    // reset form
-    setSelectedDate("");
-    setSelectedTime("");
-    setGuestName("");
-    setPhoneNumber("");
-    setNotes("");
-    setGuestCount(2);
-    setSelectedTable(null);
   };
 
   const statusStyles: Record<
@@ -246,7 +333,7 @@ function BookPageContent() {
             href="/menu"
             className="grid h-10 w-10 place-items-center rounded-full bg-white/20 text-lg"
           >
-            â†’
+            ←
           </Link>
         </div>
       </section>
@@ -262,7 +349,7 @@ function BookPageContent() {
                 : "bg-white text-slate-700"
             }`}
           >
-            â–¦ {t("tableAvailability")}
+            ▦ {t("tableAvailability")}
           </button>
 
           <button
@@ -274,7 +361,7 @@ function BookPageContent() {
                 : "bg-white text-slate-700"
             }`}
           >
-            ًں—“ {t("bookingForm")}
+            📝 {t("bookingForm")}
           </button>
         </div>
 
@@ -298,7 +385,17 @@ function BookPageContent() {
               </div>
             </div>
 
-            {tableFloorsState.map((floor) => (
+            {tablesLoading ? (
+              <div className="rounded-3xl bg-white px-6 py-4 text-center text-sm text-slate-500 shadow-[0_12px_24px_rgba(15,23,42,0.08)]">
+                {t("tablesLoading")}
+              </div>
+            ) : tableFloorsState.length === 0 ? (
+              <div className="rounded-3xl bg-white px-6 py-4 text-center text-sm text-slate-500 shadow-[0_12px_24px_rgba(15,23,42,0.08)]">
+                {t("noAvailableTables")}
+              </div>
+            ) : null}
+
+            {!tablesLoading && tableFloorsState.map((floor) => (
               <section
                 key={floor.id}
                 className="rounded-3xl bg-white p-5 shadow-[0_12px_24px_rgba(15,23,42,0.08)] sm:p-6"
@@ -327,7 +424,7 @@ function BookPageContent() {
                             <div
                               className={`grid h-8 w-8 place-items-center rounded-full bg-white text-xs ${style.text}`}
                             >
-                              ًں‘¤
+                              🪑
                             </div>
                             <div
                               className={
@@ -350,7 +447,7 @@ function BookPageContent() {
                             <p
                               className={`text-sm font-semibold ${style.text}`}
                             >
-                              {t("table")} {table.id}
+                              {t("table")} {table.number ?? table.id}
                             </p>
                             <p className="text-xs text-slate-500">
                               {t("seats")} {table.seats}
@@ -361,7 +458,7 @@ function BookPageContent() {
                     );
                   })}
                 </div>
-              </section>
+            </section>
             ))}
           </section>
         ) : (
@@ -407,6 +504,7 @@ function BookPageContent() {
                           .map((table) => ({
                             floorId: floor.id,
                             tableId: table.id,
+                            tableNumber: table.number ?? table.id,
                           })),
                       )
                       .map((table) => {
@@ -424,7 +522,7 @@ function BookPageContent() {
                             }`}
                           >
                             <span>
-                              {t("table")} {table.tableId}
+                              {t("table")} {table.tableNumber}
                             </span>
                             <input
                               type="radio"
@@ -552,17 +650,23 @@ function BookPageContent() {
                 </label>
               </div>
 
+              {actionError ? (
+                <div className="mt-6 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-center text-sm text-rose-600">
+                  {actionError}
+                </div>
+              ) : null}
+
               <button
                 type="button"
-                disabled={!isFormComplete}
+                disabled={!isFormComplete || isSubmitting}
                 onClick={handleConfirm}
                 className={`mt-8 w-full rounded-2xl py-4 text-base font-semibold text-white shadow-[0_14px_24px_rgba(234,106,54,0.3)] ${
-                  isFormComplete
+                  isFormComplete && !isSubmitting
                     ? "bg-orange-400"
                     : "cursor-not-allowed bg-orange-200"
                 }`}
               >
-                {t("confirmReservation")}
+                {isSubmitting ? t("sending") : t("confirmReservation")}
               </button>
             </section>
 
@@ -588,7 +692,7 @@ function BookPageContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-[36px] bg-white px-6 py-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600">
-              âœ“
+              ✓
             </div>
 
             <h3 className="mt-5 text-xl font-semibold text-slate-900">
@@ -631,5 +735,6 @@ export default function BookPage() {
     </Suspense>
   );
 }
+
 
 

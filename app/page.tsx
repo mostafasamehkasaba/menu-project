@@ -5,6 +5,7 @@ import { Cairo } from "next/font/google";
 import { useLanguage } from "./components/language-provider";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { fetchMenuTables } from "./services/menu-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -17,7 +18,61 @@ export default function Home() {
   const [showTablePicker, setShowTablePicker] = useState(false);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [isRestaurantOpen, setIsRestaurantOpen] = useState(true);
-  const availableTables = [1, 3, 5, 6, 8, 10, 11, 12];
+  const [availableTables, setAvailableTables] = useState<number[]>([]);
+  const [tablesLoading, setTablesLoading] = useState(true);
+
+  const loadTables = async (signal?: { cancelled: boolean }) => {
+    setTablesLoading(true);
+    const data = await fetchMenuTables();
+    if (signal?.cancelled) {
+      return;
+    }
+    const normalized = data
+      .map((table) => {
+        const number =
+          table.number ??
+          table.table_number ??
+          (Number.isFinite(Number(table.code)) ? Number(table.code) : null) ??
+          table.id;
+        return {
+          number: Number.isFinite(number) ? Number(number) : null,
+          status: table.status,
+        };
+      })
+      .filter((table) => Number.isFinite(table.number)) as {
+      number: number;
+      status?: "AVAILABLE" | "OCCUPIED" | "RESERVED";
+    }[];
+
+    const withStatus = normalized.some((table) => table.status);
+    const filtered = withStatus
+      ? normalized.filter((table) => table.status === "AVAILABLE")
+      : normalized;
+    const numbers = (filtered.length ? filtered : normalized)
+      .map((table) => table.number)
+      .sort((a, b) => a - b);
+    setAvailableTables(numbers);
+    setTablesLoading(false);
+  };
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    loadTables(signal);
+    return () => {
+      signal.cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showTablePicker) {
+      return;
+    }
+    const signal = { cancelled: false };
+    loadTables(signal);
+    return () => {
+      signal.cancelled = true;
+    };
+  }, [showTablePicker]);
 
   useEffect(() => {
     const readStatus = () => {
@@ -142,7 +197,18 @@ export default function Home() {
               {t("selectTable")}
             </h3>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {availableTables.map((table) => {
+              {tablesLoading ? (
+                <div className="col-span-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-500">
+                  {t("tablesLoading")}
+                </div>
+              ) : availableTables.length === 0 ? (
+                <div className="col-span-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-500">
+                  {t("noAvailableTables")}
+                </div>
+              ) : null}
+
+              {!tablesLoading &&
+                availableTables.map((table) => {
                 const isSelected = selectedTable === table;
                 return (
                   <label
@@ -162,8 +228,8 @@ export default function Home() {
                       checked={isSelected}
                       onChange={() => setSelectedTable(table)}
                       className="h-4 w-4 accent-orange-500"
-                    />
-                  </label>
+                      />
+                    </label>
                 );
               })}
             </div>

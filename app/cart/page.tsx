@@ -10,8 +10,7 @@ import {
   updateCartItem,
   type CartItem,
 } from "../lib/cart";
-import { menuItems } from "../lib/menu-data";
-import { formatCurrency, getLocalizedText } from "../lib/i18n";
+import { formatCurrency } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
 
 const cairo = Cairo({
@@ -23,11 +22,6 @@ export default function CartPage() {
   const { dir, lang, t } = useLanguage();
   const [items, setItems] = useState<CartItem[]>(() => getCartItems());
   const [orderType, setOrderType] = useState<"takeaway" | "dineIn">("dineIn");
-
-  const resolveItemName = (item: CartItem) => {
-    const match = menuItems.find((entry) => entry.id === item.id);
-    return match ? getLocalizedText(match.name, lang) : item.name;
-  };
 
   const total = useMemo(
     () => items.reduce((sum, item) => sum + item.price * item.qty, 0),
@@ -110,7 +104,7 @@ export default function CartPage() {
                 </div>
                 <div className="flex-1 text-end">
                   <h2 className="text-sm font-semibold">
-                    {resolveItemName(item)}
+                    {item.name}
                   </h2>
                   <p className="text-xs text-orange-500">
                     {formatCurrency(item.price, lang)}
@@ -118,7 +112,7 @@ export default function CartPage() {
                 </div>
                 <img
                   src={item.image}
-                  alt={resolveItemName(item)}
+                  alt={item.name}
                   className="h-16 w-16 rounded-2xl object-cover"
                 />
               </article>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import type { LocalizedText } from "../../lib/i18n";
@@ -6,9 +6,10 @@ import { formatCurrency, getLocalizedText } from "../../lib/i18n";
 import { useLanguage } from "../../components/language-provider";
 import {
   createProduct,
+  createTag,
   deleteProduct,
   fetchCategories,
-  fetchProducts,
+  fetchProductsPage,
   fetchTags,
   toggleProductAvailability,
   updateProduct,
@@ -69,6 +70,17 @@ const parseNumber = (value: string | number | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const buildTagCode = (value: string) => {
+  const normalized = value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || `tag-${Date.now()}`;
+};
+
 const resolveImageUrl = (image?: string | null) => {
   if (!image) {
     return null;
@@ -125,8 +137,12 @@ const getTagTone = (colorKey?: string | null) => {
 export default function ProductsPage() {
   const { lang } = useLanguage();
   const [items, setItems] = useState<ProductRow[]>([]);
+  const [nextPath, setNextPath] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [tags, setTags] = useState<TagOption[]>([]);
+  const [newTagName, setNewTagName] = useState("");
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -160,7 +176,7 @@ export default function ProductsPage() {
         await Promise.allSettled([
           fetchCategories(),
           fetchTags(),
-          fetchProducts(),
+          fetchProductsPage(),
         ]);
 
       if (!mounted) {
@@ -186,10 +202,11 @@ export default function ProductsPage() {
       }
 
       if (productsResult.status === "fulfilled" && productsResult.value) {
-        setItems(productsResult.value.map(mapApiProduct));
+        setItems(productsResult.value.results.map(mapApiProduct));
+        setNextPath(productsResult.value.next);
       } else {
         setItems([]);
-        setLoadError("تعذر تحميل المنتجات من الباك.");
+        setLoadError("");
       }
     };
 
@@ -198,6 +215,21 @@ export default function ProductsPage() {
       mounted = false;
     };
   }, []);
+
+  const handleLoadMore = async () => {
+    if (!nextPath || isLoadingMore) {
+      return;
+    }
+    setIsLoadingMore(true);
+    const page = await fetchProductsPage(nextPath);
+    if (page?.results?.length) {
+      setItems((prev) => [...prev, ...page.results.map(mapApiProduct)]);
+      setNextPath(page.next);
+    } else {
+      setNextPath(null);
+    }
+    setIsLoadingMore(false);
+  };
 
   const resolvedCategoryId = useMemo(() => {
     if (!categories.length) {
@@ -288,6 +320,30 @@ export default function ProductsPage() {
     setForm((prev) => ({ ...prev, image: defaultProductImage }));
     setImageFile(null);
     setFileInputKey((prev) => prev + 1);
+  };
+
+  const handleCreateTag = async () => {
+    const nameAr = newTagName.trim();
+    if (!nameAr || isCreatingTag) {
+      return;
+    }
+    setFormError(null);
+    setIsCreatingTag(true);
+    try {
+      const created = await createTag({
+        name_ar: nameAr,
+        name_en: nameAr,
+        code: buildTagCode(nameAr),
+      });
+      const mapped = mapApiTag(created);
+      setTags((prev) => [mapped, ...prev]);
+      setForm((prev) => ({ ...prev, tagId: mapped.id }));
+      setNewTagName("");
+    } catch {
+      setFormError("فشل إضافة العلامة من الباك.");
+    } finally {
+      setIsCreatingTag(false);
+    }
   };
 
   const handleSave = async () => {
@@ -514,6 +570,30 @@ export default function ProductsPage() {
                   </option>
                 ))}
               </select>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  value={newTagName}
+                  onChange={(event) => setNewTagName(event.target.value)}
+                  placeholder="اكتب اسم العلامة الجديدة"
+                  className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateTag}
+                  disabled={!newTagName.trim() || isCreatingTag}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                    !newTagName.trim() || isCreatingTag
+                      ? "cursor-not-allowed bg-slate-200 text-slate-500"
+                      : "bg-emerald-600 text-white"
+                  }`}
+                >
+                  {isCreatingTag ? "جارٍ الإضافة..." : "إضافة علامة"}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                لو مش لاقي العلامة، اكتبها واضغط إضافة.
+              </p>
             </label>
             <label className="block text-right text-sm text-slate-600 md:col-span-3">
               صورة المنتج
@@ -722,7 +802,35 @@ export default function ProductsPage() {
           </div>
         </div>
       </section>
+
+      {nextPath ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-sm ${
+              isLoadingMore
+                ? "cursor-not-allowed bg-slate-200 text-slate-500"
+                : "bg-emerald-600 text-white"
+            }`}
+          >
+            {isLoadingMore ? "جارٍ التحميل..." : "تحميل المزيد"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
 

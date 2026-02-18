@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   FiCalendar,
   FiChevronDown,
@@ -22,6 +22,7 @@ import {
   updateOffer,
   type ApiOffer,
 } from "../../services/admin-api";
+import { getApiBaseUrl } from "../../services/api-client";
 
 const defaultOfferImage =
   "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=300&q=80";
@@ -37,6 +38,7 @@ type OfferRow = {
   startAt: string;
   endAt: string;
   isActive: boolean;
+  image: string;
 };
 
 const statusPills: Record<OfferStatus, { label: string; className: string }> = {
@@ -50,6 +52,21 @@ const parseNumber = (value: string | number | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const resolveImageUrl = (image?: string | null) => {
+  if (!image) {
+    return null;
+  }
+  if (/^https?:\/\//i.test(image)) {
+    return image;
+  }
+  const apiBase = getApiBaseUrl();
+  if (!apiBase) {
+    return image;
+  }
+  const normalized = image.startsWith("/") ? image : `/${image}`;
+  return `${apiBase}${normalized}`;
+};
+
 const mapApiOffer = (offer: ApiOffer): OfferRow => ({
   id: offer.id,
   title: offer.title_ar,
@@ -59,6 +76,7 @@ const mapApiOffer = (offer: ApiOffer): OfferRow => ({
   startAt: offer.start_at,
   endAt: offer.end_at,
   isActive: offer.is_active ?? true,
+  image: resolveImageUrl(offer.image) || defaultOfferImage,
 });
 
 const toDateInputValue = (value?: string | null) => {
@@ -111,6 +129,9 @@ export default function OffersPage() {
   const copyTimeoutRef = useRef<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+  const [baseImage, setBaseImage] = useState(defaultOfferImage);
   const [form, setForm] = useState({
     title: "",
     desc: "",
@@ -119,6 +140,7 @@ export default function OffersPage() {
     startDate: "",
     endDate: "",
     active: "inactive",
+    image: defaultOfferImage,
   });
 
   useEffect(() => {
@@ -203,11 +225,41 @@ export default function OffersPage() {
       startDate: "",
       endDate: "",
       active: "inactive",
+      image: defaultOfferImage,
     });
     setFormError(null);
+    setImageFile(null);
+    setFileInputKey((prev) => prev + 1);
+    setBaseImage(defaultOfferImage);
+  };
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setImageFile(null);
+      setForm((prev) => ({ ...prev, image: baseImage }));
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setForm((prev) => ({ ...prev, image: result || defaultOfferImage }));
+    };
+    reader.readAsDataURL(file);
+    setImageFile(file);
+  };
+
+  const clearImage = () => {
+    setImageFile(null);
+    setForm((prev) => ({ ...prev, image: baseImage }));
+    setFileInputKey((prev) => prev + 1);
   };
 
   const handleEdit = (offer: OfferRow) => {
+    const initialImage = offer.image || defaultOfferImage;
     setEditingId(offer.id);
     setForm({
       title: offer.title,
@@ -217,7 +269,11 @@ export default function OffersPage() {
       startDate: toDateInputValue(offer.startAt),
       endDate: toDateInputValue(offer.endAt),
       active: offer.isActive ? "active" : "inactive",
+      image: initialImage,
     });
+    setBaseImage(initialImage);
+    setImageFile(null);
+    setFileInputKey((prev) => prev + 1);
     setFormError(null);
     setShowForm(true);
   };
@@ -247,7 +303,7 @@ export default function OffersPage() {
 
     if (editingId !== null) {
       try {
-        const updated = await updateOffer(editingId, payload);
+        const updated = await updateOffer(editingId, payload, imageFile);
         setOffers((prev) =>
           prev.map((offer) => (offer.id === editingId ? mapApiOffer(updated) : offer))
         );
@@ -257,7 +313,7 @@ export default function OffersPage() {
       }
     } else {
       try {
-        const created = await createOffer(payload);
+        const created = await createOffer(payload, imageFile);
         setOffers((prev) => [mapApiOffer(created), ...prev]);
       } catch {
         setFormError("فشل إضافة العرض على الباك.");
@@ -400,6 +456,46 @@ export default function OffersPage() {
                 }
                 className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none"
               />
+            </label>
+            <label className="block text-right text-sm text-slate-600 md:col-span-3">
+              صورة العرض
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-3">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                  {form.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={form.image}
+                      alt="صورة العرض"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-[11px] text-slate-400">
+                      بدون صورة
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+                  <input
+                    key={fileInputKey}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="block w-full cursor-pointer rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+                  />
+                  {imageFile ? (
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
+                    >
+                      إلغاء الصورة المختارة
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                ارفع صورة بصيغة PNG أو JPG، وسيتم استخدامها في العرض.
+              </p>
             </label>
             <label className="block text-right text-sm text-slate-600">
               تاريخ البداية
@@ -579,7 +675,7 @@ export default function OffersPage() {
                 >
                   <div className="flex justify-center">
                     <img
-                      src={defaultOfferImage}
+                      src={offer.image || defaultOfferImage}
                       alt={offer.title}
                       className="h-12 w-12 rounded-2xl object-cover shadow-[0_8px_18px_rgba(15,23,42,0.12)]"
                       loading="lazy"

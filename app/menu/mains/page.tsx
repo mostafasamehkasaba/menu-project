@@ -1,10 +1,13 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
 import type { LocalizedText } from "../../lib/i18n";
 import { formatCurrency, getLocalizedText } from "../../lib/i18n";
 import { useLanguage } from "../../components/language-provider";
+import { fetchMenuCatalog } from "../../services/menu-api";
+import type { MenuCategory, MenuItem } from "../../lib/menu-data";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -19,50 +22,65 @@ const categories: {
   active?: boolean;
 }[] = [
   { id: "all", label: { ar: "الكل", en: "All" }, icon: "✦", href: "/menu" },
-  { id: "apps", label: { ar: "مقبلات", en: "Appetizers" }, icon: "🥗", href: "/menu/appetizers" },
+  { id: "apps", label: { ar: "مقبلات", en: "Appetizers" }, icon: "🍟", href: "/menu/appetizers" },
   { id: "mains", label: { ar: "وجبات رئيسية", en: "Mains" }, icon: "🍔", active: true, href: "/menu/mains" },
   { id: "drinks", label: { ar: "مشروبات", en: "Drinks" }, icon: "🥤", href: "/menu/drinks" },
   { id: "desserts", label: { ar: "حلويات", en: "Desserts" }, icon: "🍰", href: "/menu" },
 ];
 
-const mains: {
-  id: number;
-  name: LocalizedText;
-  desc: LocalizedText;
-  price: number;
-  tag?: "new" | "hot";
-  image: string;
-}[] = [
-  {
-    id: 1,
-    name: { ar: "بيتزا مارغريتا", en: "Margherita pizza" },
-    desc: { ar: "بيتزا إيطالية مع صلصة الطماطم والموتزاريلا الطازجة والريحان", en: "Italian pizza with tomato sauce, fresh mozzarella, and basil" },
-    price: 150,
-    tag: "new",
-    image:
-      "https://images.unsplash.com/photo-1548365328-9f547d9a6f6f?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: 2,
-    name: { ar: "برجر لحم فاخر", en: "Premium beef burger" },
-    desc: { ar: "برجر لحم بقري طازج مع جبن الشيدر والخس والطماطم والصوص الخاص", en: "Fresh beef burger with cheddar, lettuce, tomato, and special sauce" },
-    price: 120,
-    tag: "hot",
-    image:
-      "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: 3,
-    name: { ar: "دجاج مشوي", en: "Grilled chicken" },
-    desc: { ar: "صدور دجاج مشوية مع الأرز والخضار المشكلة", en: "Grilled chicken breast with rice and mixed vegetables" },
-    price: 140,
-    image:
-      "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=1400&q=80",
-  },
-];
-
 export default function MainsPage() {
   const { dir, lang, t } = useLanguage();
+  const [catalog, setCatalog] = useState<{
+    categories: MenuCategory[];
+    items: MenuItem[];
+  }>({
+    categories: [],
+    items: [],
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCatalog = async () => {
+      const data = await fetchMenuCatalog();
+      if (!mounted) {
+        return;
+      }
+      setCatalog({
+        categories: data?.categories ?? [],
+        items: data?.items ?? [],
+      });
+      setIsLoading(false);
+    };
+
+    loadCatalog();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const categoryId = useMemo(() => {
+    const match = catalog.categories.find((category) => {
+      const labelAr = (category.label.ar ?? "").toLowerCase();
+      const labelEn = (category.label.en ?? "").toLowerCase();
+      return (
+        labelAr.includes("رئيس") ||
+        labelEn.includes("main") ||
+        labelEn.includes("entree") ||
+        labelEn.includes("meal")
+      );
+    });
+    return match?.id ?? "";
+  }, [catalog.categories]);
+
+  const items = useMemo(() => {
+    if (!categoryId) {
+      return [];
+    }
+    return catalog.items.filter((item) => item.category === categoryId);
+  }, [catalog.items, categoryId]);
+
   return (
     <div
       className={`${cairo.className} min-h-screen bg-[#f7f7f8] text-slate-900`}
@@ -92,44 +110,54 @@ export default function MainsPage() {
         </header>
 
         <section className="mt-10 grid gap-6 md:grid-cols-2">
-          {mains.map((item) => (
-            <article
-              key={item.id}
-              className="overflow-hidden rounded-3xl bg-white shadow-[0_14px_30px_rgba(15,23,42,0.08)]"
-            >
-              <div className="relative">
-                <img
-                  src={item.image}
-                  alt={getLocalizedText(item.name, lang)}
-                  className="h-52 w-full object-cover"
-                  loading="lazy"
-                />
-                {item.tag && (
-                  <span
-                    className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold text-white ${
-                      item.tag === "new" ? "bg-emerald-500" : "bg-rose-500"
-                    }`}
+          {isLoading ? (
+            <div className="rounded-3xl bg-white p-6 text-center text-sm text-slate-500 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
+              Loading...
+            </div>
+          ) : items.length === 0 ? (
+            <div className="rounded-3xl bg-white p-6 text-center text-sm text-slate-500 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
+              <h3 className="text-base font-semibold text-slate-800">
+                {t("emptyMenuTitle")}
+              </h3>
+              <p className="mt-2">{t("emptyMenuMessage")}</p>
+            </div>
+          ) : (
+            items.map((item) => (
+              <article
+                key={item.id}
+                className="overflow-hidden rounded-3xl bg-white shadow-[0_14px_30px_rgba(15,23,42,0.08)]"
+              >
+                <Link href={`/menu/${item.id}`} className="block">
+                  <img
+                    src={item.image}
+                    alt={getLocalizedText(item.name, lang)}
+                    className="h-52 w-full object-cover"
+                    loading="lazy"
+                  />
+                </Link>
+                <div className="relative px-6 pb-6 pt-4 text-sm">
+                  <Link href={`/menu/${item.id}`}>
+                    <h2 className="text-base font-semibold">
+                      {getLocalizedText(item.name, lang)}
+                    </h2>
+                  </Link>
+                  <p className="mt-1 text-slate-500">
+                    {getLocalizedText(item.desc, lang)}
+                  </p>
+                  <p className="mt-3 text-orange-500">
+                    {formatCurrency(item.price, lang)}
+                  </p>
+                  <Link
+                    href={`/menu/${item.id}`}
+                    className="absolute -left-4 -bottom-4 flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 text-xl text-white shadow-[0_10px_18px_rgba(234,106,54,0.35)]"
+                    aria-label={t("addToCart")}
                   >
-                    {item.tag === "new" ? t("tagNew") : t("tagHot")}
-                  </span>
-                )}
-              </div>
-              <div className="relative px-6 pb-6 pt-4 text-sm">
-                <h2 className="text-base font-semibold">
-                  {getLocalizedText(item.name, lang)}
-                </h2>
-                <p className="mt-1 text-slate-500">
-                  {getLocalizedText(item.desc, lang)}
-                </p>
-                <p className="mt-3 text-orange-500">
-                  {formatCurrency(item.price, lang)}
-                </p>
-                <button className="absolute -left-4 -bottom-4 flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 text-xl text-white shadow-[0_10px_18px_rgba(234,106,54,0.35)]">
-                  +
-                </button>
-              </div>
-            </article>
-          ))}
+                    +
+                  </Link>
+                </div>
+              </article>
+            ))
+          )}
         </section>
       </div>
 

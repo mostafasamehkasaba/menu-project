@@ -46,6 +46,9 @@ export const addToCart = (
 
   if (existing) {
     existing.qty += quantity;
+    existing.name = item.name;
+    existing.price = item.price;
+    existing.image = item.image;
   } else {
     items.push({ ...item, qty: quantity });
   }

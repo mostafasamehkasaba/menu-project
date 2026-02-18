@@ -32,6 +32,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       return DEFAULT_LANG;
     }
 
+    const pathname = window.location.pathname;
+    if (pathname.startsWith("/menu")) {
+      return "ar";
+    }
+
     const saved = window.localStorage.getItem(STORAGE_KEY);
     return isLanguage(saved) ? saved : DEFAULT_LANG;
   });
@@ -41,9 +46,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    window.localStorage.setItem(STORAGE_KEY, lang);
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+    window.localStorage.setItem(STORAGE_KEY, lang);
   }, [lang]);
 
   const value = useMemo<LanguageContextValue>(

@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
 import { useSearchParams } from "next/navigation";
-import { getCartItems, type CartItem } from "../lib/cart";
-import { menuItems } from "../lib/menu-data";
-import { formatCurrency, getLocalizedText } from "../lib/i18n";
+import { getCartItems, saveCartItems, type CartItem } from "../lib/cart";
+import { formatCurrency } from "../lib/i18n";
 import { useLanguage } from "../components/language-provider";
+import { getStoredTable } from "../lib/table";
+import { createMenuOrder } from "../services/menu-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -35,6 +36,7 @@ function CheckoutContent() {
   const [serviceType, setServiceType] = useState<ServiceType>(
     hasTableOption ? "table" : "counter"
   );
+  const [tableNumber, setTableNumber] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [walletProvider, setWalletProvider] =
     useState<WalletProvider>("vodafone");
@@ -48,7 +50,13 @@ function CheckoutContent() {
     expiry?: string;
     cvv?: string;
   }>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [successInfo, setSuccessInfo] = useState<SuccessInfo | null>(null);
+
+  useEffect(() => {
+    setTableNumber(getStoredTable());
+  }, []);
 
   const subtotal = useMemo(
     () => items.reduce((sum, item) => sum + item.price * item.qty, 0),
@@ -58,13 +66,13 @@ function CheckoutContent() {
   const service = subtotal * SERVICE_RATE;
   const total = subtotal + tax + service;
 
-  const resolveItemName = (item: CartItem) => {
-    const match = menuItems.find((entry) => entry.id === item.id);
-    return match ? getLocalizedText(match.name, lang) : item.name;
-  };
-
-  const handlePayNow = () => {
+  const handlePayNow = async () => {
     if (items.length === 0) {
+      return;
+    }
+    setSubmitError(null);
+    if (serviceType === "table" && !tableNumber) {
+      setSubmitError(t("orderSubmitTableMissing"));
       return;
     }
     if (paymentMethod === "card") {
@@ -92,14 +100,39 @@ function CheckoutContent() {
       setCardErrors({});
     }
 
-    const now = new Date();
-    setSuccessInfo({
-      orderNumber: `ORD${now.getTime()}`,
-      orderTime: now.toLocaleTimeString(lang === "ar" ? "ar-EG" : "en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    });
+    setIsSubmitting(true);
+    try {
+      const orderType =
+        orderTypeParam === "takeaway" ? "TAKEAWAY" : "DINE_IN";
+      const orderItems = items.map((item) => ({
+        product: item.id,
+        qty: item.qty,
+      }));
+      const created = await createMenuOrder({
+        order_type: orderType,
+        table: serviceType === "table" ? tableNumber : null,
+        notes: notes.trim() || null,
+        items: orderItems,
+      });
+      const createdAt = created?.created_at
+        ? new Date(created.created_at)
+        : new Date();
+      setSuccessInfo({
+        orderNumber: created?.id ? `#${created.id}` : `ORD${Date.now()}`,
+        orderTime: createdAt.toLocaleTimeString(
+          lang === "ar" ? "ar-EG" : "en-US",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          }
+        ),
+      });
+      saveCartItems([]);
+    } catch {
+      setSubmitError(t("orderSubmitError"));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const backIcon = dir === "rtl" ? "→" : "←";
@@ -171,12 +204,12 @@ function CheckoutContent() {
                   <div className="flex items-center gap-3">
                     <img
                       src={item.image}
-                      alt={resolveItemName(item)}
+                      alt={item.name}
                       className="h-12 w-12 rounded-xl object-cover"
                     />
                     <div className={textAlign}>
                       <p className="text-sm font-semibold text-slate-900">
-                        {resolveItemName(item)}
+                        {item.name}
                       </p>
                       <p className="text-xs text-slate-400">
                         {t("quantity")}: {item.qty}
@@ -392,17 +425,24 @@ function CheckoutContent() {
           )}
         </section>
 
+        {submitError ? (
+          <div className="mt-6 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-center text-sm font-semibold text-rose-600">
+            {submitError}
+          </div>
+        ) : null}
+
         <button
           type="button"
           onClick={handlePayNow}
-          disabled={items.length === 0}
+          disabled={items.length === 0 || isSubmitting}
           className={`mt-6 w-full rounded-2xl py-4 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(234,106,54,0.35)] ${
-            items.length === 0
+            items.length === 0 || isSubmitting
               ? "cursor-not-allowed bg-orange-200"
               : "bg-gradient-to-r from-orange-500 to-orange-600"
           }`}
         >
-          {t("payNow")} {formatCurrency(total, lang, 2)}
+          {isSubmitting ? t("placingOrder") : t("payNow")}{" "}
+          {formatCurrency(total, lang, 2)}
         </button>
       </div>
 

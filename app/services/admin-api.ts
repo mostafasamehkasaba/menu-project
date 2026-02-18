@@ -17,6 +17,10 @@ export interface Data<T = unknown> {
 
 export type Paginated<T> = Data<T>;
 export type ApiRoot<T> = Root<T>;
+export type PaginatedPage<T> = Omit<Paginated<T>, "next" | "previous"> & {
+  next: string | null;
+  previous: string | null;
+};
 
 export type ApiCategory = {
   id: number;
@@ -43,6 +47,7 @@ export type ApiOffer = {
   start_at: string;
   end_at: string;
   is_active?: boolean;
+  image?: string | null;
   applies_to_products?: number[] | null;
   applies_to_categories?: number[] | null;
 };
@@ -208,6 +213,13 @@ type CategoryWritePayload = {
   sort_order?: number | null;
 };
 
+type TagWritePayload = {
+  name_ar: string;
+  name_en?: string | null;
+  code?: string | null;
+  color_key?: string | null;
+};
+
 type ProductWritePayload = {
   name_ar: string;
   description_ar?: string | null;
@@ -226,6 +238,7 @@ type OfferWritePayload = {
   start_at: string;
   end_at: string;
   is_active?: boolean;
+  image?: string | null;
   applies_to_products?: number[];
   applies_to_categories?: number[];
 };
@@ -356,6 +369,28 @@ export const fetchProducts = async (): Promise<ApiProductRead[] | null> => {
   }
   try {
     return await fetchAllPages<ApiProductRead>("/api/products/?page_size=200");
+  } catch {
+    return null;
+  }
+};
+
+export const fetchProductsPage = async (
+  path?: string
+): Promise<PaginatedPage<ApiProductRead> | null> => {
+  if (!getApiBaseUrl()) {
+    return null;
+  }
+  try {
+    const nextPath =
+      normalizePath(path) ?? "/api/products/?page_size=50";
+    const payload: PaginatedPayload<ApiProductRead> =
+      await apiFetch<PaginatedPayload<ApiProductRead>>(nextPath);
+    const pageData = unwrapPaginated(payload);
+    return {
+      ...pageData,
+      next: normalizePath(pageData.next),
+      previous: normalizePath(pageData.previous),
+    };
   } catch {
     return null;
   }
@@ -544,6 +579,15 @@ export const createCategory = async (
   });
 };
 
+export const createTag = async (
+  payload: TagWritePayload
+): Promise<ApiTag> => {
+  return apiGet<ApiTag>("/api/tags/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+};
+
 export const updateCategory = async (
   id: number,
   payload: CategoryWritePayload
@@ -606,6 +650,44 @@ const buildProductBody = (
   return JSON.stringify(sanitized);
 };
 
+const buildOfferBody = (
+  payload: OfferWritePayload | Partial<OfferWritePayload>,
+  imageFile?: File | null
+) => {
+  const sanitized: Partial<OfferWritePayload> = { ...payload };
+
+  if (sanitized.description_ar === "") {
+    delete sanitized.description_ar;
+  }
+  if (!sanitized.applies_to_products?.length) {
+    delete sanitized.applies_to_products;
+  }
+  if (!sanitized.applies_to_categories?.length) {
+    delete sanitized.applies_to_categories;
+  }
+  if (typeof sanitized.is_active === "undefined") {
+    delete sanitized.is_active;
+  }
+
+  if (imageFile) {
+    const data = new FormData();
+    Object.entries(sanitized).forEach(([key, value]) => {
+      if (value === null || typeof value === "undefined") {
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((item) => data.append(key, String(item)));
+        return;
+      }
+      data.append(key, String(value));
+    });
+    data.append("image", imageFile);
+    return data;
+  }
+
+  return JSON.stringify(sanitized);
+};
+
 export const createProduct = async (
   payload: ProductWritePayload,
   imageFile?: File | null
@@ -642,21 +724,25 @@ export const toggleProductAvailability = async (
 };
 
 export const createOffer = async (
-  payload: OfferWritePayload
+  payload: OfferWritePayload,
+  imageFile?: File | null
 ): Promise<ApiOffer> => {
+  const body = buildOfferBody(payload, imageFile);
   return apiGet<ApiOffer>("/api/offers/", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body,
   });
 };
 
 export const updateOffer = async (
   id: number,
-  payload: Partial<OfferWritePayload>
+  payload: Partial<OfferWritePayload>,
+  imageFile?: File | null
 ): Promise<ApiOffer> => {
+  const body = buildOfferBody(payload, imageFile);
   return apiGet<ApiOffer>(`/api/offers/${id}/`, {
     method: "PATCH",
-    body: JSON.stringify(payload),
+    body,
   });
 };
 
@@ -747,6 +833,25 @@ export const changeTableStatus = async (
   id: number,
   status: ApiTable["status"]
 ): Promise<ApiTable> => {
+  const isRetryable = (error: unknown) => {
+    const code =
+      typeof error === "object" && error && "status" in error
+        ? Number((error as { status?: number }).status)
+        : null;
+    return code === 400 || code === 404 || code === 405;
+  };
+
+  try {
+    return await apiGet<ApiTable>(`/api/tables/${id}/`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    });
+  } catch (error) {
+    if (!isRetryable(error)) {
+      throw error;
+    }
+  }
+
   return apiGet<ApiTable>(`/api/tables/${id}/change-status/`, {
     method: "POST",
     body: JSON.stringify({ status }),
