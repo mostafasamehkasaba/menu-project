@@ -1,5 +1,3 @@
-"use server";
-
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +22,27 @@ const hopByHopHeaders = new Set([
   "content-length",
 ]);
 
-const buildTargetUrl = (req: NextRequest, pathSegments?: string[]) => {
-  const path = pathSegments?.join("/") ?? "";
-  const target = new URL(`${baseUrl}/${path}`);
+const proxyPrefix = "/api/proxy";
+
+const ensureTrailingSlash = (path: string) => {
+  if (!path || path === "/") {
+    return "/";
+  }
+  if (path.endsWith("/")) {
+    return path;
+  }
+  if (path.includes(".")) {
+    return path;
+  }
+  return `${path}/`;
+};
+
+const buildTargetUrl = (req: NextRequest) => {
+  const rawPath = req.nextUrl.pathname.startsWith(proxyPrefix)
+    ? req.nextUrl.pathname.slice(proxyPrefix.length)
+    : req.nextUrl.pathname;
+  const path = ensureTrailingSlash(rawPath || "/");
+  const target = new URL(`${baseUrl}${path}`);
   target.search = req.nextUrl.search;
   return target;
 };
@@ -37,10 +53,7 @@ const buildHeaders = (req: NextRequest) => {
   return headers;
 };
 
-const proxyRequest = async (
-  req: NextRequest,
-  context: { params: { path?: string[] } }
-) => {
+const proxyRequest = async (req: NextRequest) => {
   if (!baseUrl) {
     return NextResponse.json(
       { message: "API base URL is missing." },
@@ -48,7 +61,7 @@ const proxyRequest = async (
     );
   }
 
-  const targetUrl = buildTargetUrl(req, context.params.path);
+  const targetUrl = buildTargetUrl(req);
   const headers = buildHeaders(req);
   const method = req.method.toUpperCase();
 

@@ -1,6 +1,11 @@
 "use client";
 
+import { mockApiFetch } from "./mock-api";
+
 const rawBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+const useMockApi =
+  process.env.NEXT_PUBLIC_MOCK_API === "true" ||
+  process.env.NEXT_PUBLIC_MOCK_API === "1";
 const trimmedBaseUrl = rawBaseUrl.replace(/\/+$/, "");
 const baseUrl = trimmedBaseUrl.endsWith("/api")
   ? trimmedBaseUrl.slice(0, -4)
@@ -156,6 +161,9 @@ export const apiFetch = async <T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> => {
+  if (useMockApi) {
+    return mockApiFetch<T>(path, options);
+  }
   if (!baseUrl) {
     throw new Error("API base URL is missing.");
   }
