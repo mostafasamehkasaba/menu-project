@@ -103,10 +103,7 @@ function LoginPageContent() {
       const { accessToken, refreshToken, message } = extractTokens(response);
 
       if (!accessToken) {
-        throw new Error(
-          message ??
-            "\u0644\u0645 \u064a\u062a\u0645 \u0627\u0633\u062a\u0644\u0627\u0645 \u0627\u0644\u062a\u0648\u0643\u0646 \u0645\u0646 \u0627\u0644\u0633\u064a\u0631\u0641\u0631."
-        );
+        throw new Error(message ?? "لم يتم استلام التوكن من السيرفر.");
       }
       setAccessToken(accessToken);
       if (refreshToken) {
@@ -115,8 +112,7 @@ function LoginPageContent() {
       router.replace(nextPath);
     } catch (err) {
       const message =
-        (err as { message?: string })?.message ??
-        "\u0641\u0634\u0644 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644.";
+        (err as { message?: string })?.message ?? "فشل تسجيل الدخول.";
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -128,19 +124,17 @@ function LoginPageContent() {
       <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-6 text-right">
           <h1 className="text-2xl font-semibold text-slate-900">
-            {"\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644"}
+            تسجيل الدخول
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            {
-              "\u0627\u062f\u062e\u0644 \u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0623\u062f\u0645\u0646 \u0644\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u0644\u0648\u062d\u0629 \u0627\u0644\u062a\u062d\u0643\u0645."
-            }
+            ادخل بيانات الأدمن للوصول إلى لوحة التحكم.
           </p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-1 text-right">
             <label className="text-sm font-semibold text-slate-700">
-              {"\u0627\u0644\u0628\u0631\u064a\u062f \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a"}
+              البريد الإلكتروني
             </label>
             <input
               type="email"
@@ -155,7 +149,7 @@ function LoginPageContent() {
 
           <div className="space-y-1 text-right">
             <label className="text-sm font-semibold text-slate-700">
-              {"\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631"}
+              كلمة المرور
             </label>
             <input
               type="password"
@@ -163,7 +157,7 @@ function LoginPageContent() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400"
-              placeholder="********"
+              placeholder="••••••••"
             />
           </div>
 
@@ -178,9 +172,7 @@ function LoginPageContent() {
             disabled={isSubmitting}
             className="flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-300"
           >
-            {isSubmitting
-              ? "\u062c\u0627\u0631\u064a \u0627\u0644\u062f\u062e\u0648\u0644..."
-              : "\u062f\u062e\u0648\u0644"}
+            {isSubmitting ? "جاري الدخول..." : "دخول"}
           </button>
         </form>
       </div>
@@ -194,7 +186,7 @@ export default function LoginPage() {
       fallback={
         <div className="min-h-screen bg-slate-50 px-4 py-10">
           <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-right text-sm text-slate-500">
-            {"\u062c\u0627\u0631\u064a \u0627\u0644\u062a\u062d\u0645\u064a\u0644..."}
+            جاري التحميل...
           </div>
         </div>
       }
