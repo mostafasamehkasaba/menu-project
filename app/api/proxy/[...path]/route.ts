@@ -78,6 +78,33 @@ const proxyRequest = async (req: NextRequest) => {
   const responseHeaders = new Headers(upstreamResponse.headers);
   hopByHopHeaders.forEach((header) => responseHeaders.delete(header));
 
+  if (!upstreamResponse.ok) {
+    const contentType = upstreamResponse.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      let bodyText = "";
+      try {
+        bodyText = await upstreamResponse.clone().text();
+      } catch {
+        bodyText = "";
+      }
+      const trimmed =
+        bodyText.length > 2000 ? `${bodyText.slice(0, 2000)}…` : bodyText;
+      console.error(
+        `[proxy] ${method} ${targetUrl.toString()} -> ${upstreamResponse.status} ${contentType}`,
+        trimmed
+      );
+      return NextResponse.json(
+        {
+          detail: trimmed || "Upstream error without body.",
+          status: upstreamResponse.status,
+          url: targetUrl.toString(),
+          upstream_content_type: contentType,
+        },
+        { status: upstreamResponse.status }
+      );
+    }
+  }
+
   return new NextResponse(upstreamResponse.body, {
     status: upstreamResponse.status,
     headers: responseHeaders,

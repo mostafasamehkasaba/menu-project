@@ -67,6 +67,14 @@ export type ApiProductRead = {
   image?: string | null;
   is_available?: boolean;
   tags?: ApiTag[] | null;
+  extras?: ApiProductExtra[] | null;
+};
+
+export type ApiProductExtra = {
+  id: number;
+  name_ar: string;
+  name_en?: string | null;
+  price: string;
 };
 
 export type ApiOrderItemRead = {
@@ -228,6 +236,14 @@ type ProductWritePayload = {
   image?: string | null;
   is_available?: boolean;
   tag_ids?: number[];
+  extras?: ProductExtraWritePayload[];
+};
+
+type ProductExtraWritePayload = {
+  id?: number;
+  name_ar: string;
+  name_en?: string | null;
+  price: string;
 };
 
 type OfferWritePayload = {
@@ -617,6 +633,18 @@ const buildProductBody = (
   imageFile?: File | null
 ) => {
   const sanitized: ProductWritePayload = { ...payload };
+  const hasExtras = Object.prototype.hasOwnProperty.call(sanitized, "extras");
+  const normalizedExtras = hasExtras
+    ? (sanitized.extras ?? [])
+        .map((extra) => ({
+          id: extra.id,
+          name_ar: extra.name_ar?.trim() || "",
+          name_en: extra.name_en?.trim() || undefined,
+          price: String(extra.price ?? "").trim(),
+        }))
+        .filter((extra) => extra.name_ar && extra.price)
+    : [];
+
   if (!sanitized.tag_ids?.length) {
     delete sanitized.tag_ids;
   }
@@ -625,6 +653,11 @@ const buildProductBody = (
   }
   if (typeof sanitized.is_available === "undefined") {
     delete sanitized.is_available;
+  }
+  if (hasExtras) {
+    sanitized.extras = normalizedExtras;
+  } else {
+    delete sanitized.extras;
   }
 
   if (imageFile) {
@@ -642,6 +675,9 @@ const buildProductBody = (
       sanitized.tag_ids.forEach((tagId) => {
         data.append("tag_ids", String(tagId));
       });
+    }
+    if (hasExtras) {
+      data.append("extras", JSON.stringify(normalizedExtras));
     }
     data.append("image", imageFile);
     return data;
@@ -712,7 +748,35 @@ export const updateProduct = async (
 };
 
 export const deleteProduct = async (id: number): Promise<void> => {
-  await apiFetch<void>(`/api/products/${id}/`, { method: "DELETE" });
+  const attemptDelete = async (path: string, method: "DELETE" | "POST") => {
+    await apiFetch<void>(path, { method });
+  };
+  const getStatus = (error: unknown) =>
+    typeof error === "object" && error && "status" in error
+      ? Number((error as { status?: number }).status)
+      : null;
+
+  try {
+    await attemptDelete(`/api/products/${id}/`, "DELETE");
+    return;
+  } catch (error) {
+    const status = getStatus(error);
+    if (status !== 404 && status !== 405) {
+      throw error;
+    }
+  }
+
+  try {
+    await attemptDelete(`/api/products/${id}`, "DELETE");
+    return;
+  } catch (error) {
+    const status = getStatus(error);
+    if (status !== 405) {
+      throw error;
+    }
+  }
+
+  await attemptDelete(`/api/products/${id}/delete/`, "POST");
 };
 
 export const toggleProductAvailability = async (

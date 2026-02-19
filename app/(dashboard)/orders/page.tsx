@@ -2,10 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  FiCheckCircle,
   FiClock,
   FiMapPin,
-  FiPackage,
   FiSearch,
 } from "react-icons/fi";
 import { fetchOrders, setOrderStatus, type ApiOrderRead } from "../../services/admin-api";
@@ -104,6 +102,9 @@ export default function OrdersPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const load = async () => {
@@ -164,12 +165,39 @@ export default function OrdersPage() {
     });
   }, [orders, activeTab, search]);
 
+  const itemsPerPage = 5;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * itemsPerPage;
+  const pagedOrders = filtered.slice(pageStart, pageStart + itemsPerPage);
+
   const selectedOrder = useMemo(() => {
     if (!selectedId) {
       return filtered[0] ?? null;
     }
     return orders.find((order) => order.id === selectedId) ?? null;
   }, [orders, filtered, selectedId]);
+
+  useEffect(() => {
+    if (!detailsOpen || !selectedOrder) {
+      setDetailVisible(false);
+      return;
+    }
+    setDetailVisible(false);
+    const timer = window.setTimeout(() => setDetailVisible(true), 10);
+    return () => window.clearTimeout(timer);
+  }, [detailsOpen, selectedOrder?.id]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setDetailsOpen(false);
+  }, [activeTab, search]);
+
+  useEffect(() => {
+    if (currentPage !== safePage) {
+      setCurrentPage(safePage);
+    }
+  }, [currentPage, safePage]);
 
   const handleStatusChange = async () => {
     if (!selectedOrder) {
@@ -290,49 +318,264 @@ export default function OrdersPage() {
     win.print();
   };
 
+  const detailsMotionClass = detailVisible
+    ? "translate-x-0 opacity-100"
+    : "-translate-x-6 opacity-0";
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-white px-4 py-3 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold ${
-                  activeTab === tab.key
-                    ? "bg-slate-100 text-slate-900"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                <span>{tab.label}</span>
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-white text-xs text-slate-600 shadow-sm">
-                  {tab.count}
-                </span>
-              </button>
-            ))}
+    <div
+      className={`relative space-y-4 transition-all duration-300 lg:h-[calc(100vh-190px)] ${
+        detailsOpen ? "lg:pl-[360px]" : "lg:pl-0"
+      }`}
+    >
+      <aside
+        className={`${
+          detailsOpen ? "block" : "hidden"
+        } lg:absolute lg:inset-y-0 lg:left-0 lg:w-[340px] lg:z-30`}
+      >
+        <div
+          className={`flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 ease-out ${
+            detailsOpen
+              ? "translate-x-0 opacity-100"
+              : "-translate-x-full opacity-0 pointer-events-none"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-900">تفاصيل الطلب</p>
+            {selectedOrder ? (
+              <span className="text-xs text-slate-400">
+                #{selectedOrder.id}
+              </span>
+            ) : null}
           </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500">
-            <FiSearch />
-            <input
-              type="text"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="ابحث عن طلب..."
-              className="w-44 bg-transparent text-right outline-none sm:w-56"
-            />
-          </div>
+          {!selectedOrder ? (
+            <div className="mt-5 text-right text-sm text-slate-500">
+              اختر طلبًا لعرض التفاصيل.
+            </div>
+          ) : (
+            <>
+              <div
+                className={`mt-4 space-y-3 transition-all duration-300 ease-out ${detailsMotionClass}`}
+              >
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400">الطلب</p>
+                      <p className="text-lg font-semibold text-slate-900">
+                        #{selectedOrder.id}
+                      </p>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs text-slate-400">الإجمالي</p>
+                      <p className="text-lg font-semibold text-emerald-600">
+                        {formatSar(selectedOrder.total ?? selectedOrder.subtotal)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(() => {
+                      const status = statusPills[selectedOrder.status] ?? {
+                        label: selectedOrder.status ?? "غير معروف",
+                        className: "bg-slate-100 text-slate-500",
+                      };
+                      return (
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${status.className}`}
+                        >
+                          {status.label}
+                        </span>
+                      );
+                    })()}
+                    {(() => {
+                      const payment = paymentPills[selectedOrder.payment_status] ?? {
+                        label: selectedOrder.payment_status ?? "غير معروف",
+                        className: "bg-slate-100 text-slate-500",
+                      };
+                      return (
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${payment.className}`}
+                        >
+                          {payment.label}
+                        </span>
+                      );
+                    })()}
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      {selectedOrder.table
+                        ? "في المطعم"
+                        : orderTypeLabels[selectedOrder.order_type]}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-2xl border border-slate-200 px-3 py-2 text-right">
+                    <p className="text-[11px] text-slate-400">الوقت</p>
+                    <p className="font-semibold text-slate-900">
+                      {formatTime(selectedOrder.created_at)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 px-3 py-2 text-right">
+                    <p className="text-[11px] text-slate-400">التاريخ</p>
+                    <p className="font-semibold text-slate-900">
+                      {formatDate(selectedOrder.created_at)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 px-3 py-2 text-right">
+                    <p className="text-[11px] text-slate-400">الطاولة</p>
+                    <p className="font-semibold text-slate-900">
+                      {selectedOrder.table ?? "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 px-3 py-2 text-right">
+                    <p className="text-[11px] text-slate-400">منذ</p>
+                    <p className="font-semibold text-slate-900">
+                      {minutesAgo(selectedOrder.created_at)}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">المنتجات</p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {selectedOrder.items?.length ? (
+                      selectedOrder.items.slice(0, 4).map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between rounded-2xl border border-slate-200 px-3 py-2 text-slate-700"
+                        >
+                          <div className="text-right">
+                            <p className="font-semibold">
+                              {item.qty}x {item.product_name}
+                            </p>
+                            {item.notes ? (
+                              <p className="text-[11px] text-slate-400">
+                                {item.notes}
+                              </p>
+                            ) : null}
+                          </div>
+                          <span className="text-xs font-semibold">
+                            {formatSar(item.line_total)}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-right text-xs text-slate-400">
+                        لا توجد منتجات.
+                      </div>
+                    )}
+                    {selectedOrder.items &&
+                    selectedOrder.items.length > 4 ? (
+                      <div className="text-right text-xs text-slate-400">
+                        +{selectedOrder.items.length - 4} عناصر أخرى
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 px-3 py-3 text-sm">
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span>إجمالي الفاتورة</span>
+                    <span className="font-semibold">
+                      {formatSar(selectedOrder.total ?? selectedOrder.subtotal)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-slate-500">حالة الدفع</span>
+                    {(() => {
+                      const payment =
+                        paymentPills[selectedOrder.payment_status] ?? {
+                          label: selectedOrder.payment_status ?? "غير معروف",
+                          className: "bg-slate-100 text-slate-500",
+                        };
+                      return (
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${payment.className}`}
+                        >
+                          {payment.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {actionError ? (
+                  <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                    {actionError}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-3 space-y-2">
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+                >
+                  طباعة
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStatusChange}
+                  className="w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  تغيير الحالة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailsOpen(false)}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+                >
+                  إغلاق التفاصيل
+                </button>
+              </div>
+            </>
+          )}
         </div>
+      </aside>
+
+      <section className="lg:h-full">
+        <div className="flex h-full flex-col space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-white px-4 py-3 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    activeTab === tab.key
+                      ? "bg-slate-100 text-slate-900"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-white text-xs text-slate-600 shadow-sm">
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500">
+              <FiSearch />
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="ابحث عن طلب..."
+                className="w-44 bg-transparent text-right outline-none sm:w-56"
+              />
+            </div>
+          </div>
 
         {loadError ? (
-          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-2 text-sm text-rose-600">
             {loadError}
           </div>
         ) : null}
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {isLoading ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-4 text-right text-sm text-slate-500">
               جاري تحميل الطلبات...
@@ -343,7 +586,7 @@ export default function OrdersPage() {
               لا توجد طلبات مطابقة.
             </div>
           ) : null}
-          {filtered.map((order) => {
+          {pagedOrders.map((order) => {
             const status = statusPills[order.status] ?? {
               label: order.status ?? "غير معروف",
               className: "bg-slate-100 text-slate-500",
@@ -354,11 +597,10 @@ export default function OrdersPage() {
             };
             const total = formatSar(order.total ?? order.subtotal ?? "0");
             return (
-              <button
+              <div
                 key={order.id}
-                type="button"
                 onClick={() => setSelectedId(order.id)}
-                className={`w-full rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm transition hover:border-emerald-400 ${
+                className={`w-full rounded-2xl border border-slate-200 bg-white p-3 text-right shadow-sm transition hover:border-emerald-400 ${
                   selectedOrder?.id === order.id ? "border-emerald-500" : ""
                 }`}
               >
@@ -408,186 +650,58 @@ export default function OrdersPage() {
                     </p>
                   </div>
                 </div>
-              </button>
+                <div className="mt-3 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedId(order.id);
+                      setDetailsOpen(true);
+                    }}
+                    className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-emerald-400 hover:text-emerald-600"
+                  >
+                    عرض التفاصيل
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
-      </section>
-
-      <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="text-right">
-          <p className="text-sm font-semibold text-slate-900">تفاصيل الطلب</p>
-        </div>
-
-        {!selectedOrder ? (
-          <div className="mt-5 text-right text-sm text-slate-500">
-            اختر طلبًا لعرض التفاصيل.
+        {filtered.length > itemsPerPage ? (
+          <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={safePage <= 1}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                safePage <= 1
+                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  : "border border-slate-200 text-slate-600 hover:border-emerald-400 hover:text-emerald-600"
+              }`}
+            >
+              السابق
+            </button>
+            <span className="text-xs text-slate-500">
+              صفحة {safePage} من {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+              }
+              disabled={safePage >= totalPages}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                safePage >= totalPages
+                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                  : "border border-slate-200 text-slate-600 hover:border-emerald-400 hover:text-emerald-600"
+              }`}
+            >
+              التالي
+            </button>
           </div>
-        ) : (
-          <>
-            <div className="mt-5 space-y-4 text-sm">
-              <div className="flex items-center justify-between text-slate-500">
-                <span>رقم الطلب</span>
-                <span className="font-semibold text-slate-900">
-                  #{selectedOrder.id}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-slate-500">
-                <span>النوع</span>
-                <span className="font-semibold text-slate-900">
-                  {selectedOrder.table
-                    ? "في المطعم"
-                    : orderTypeLabels[selectedOrder.order_type]}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-slate-500">
-                <span>الطاولة</span>
-                <span className="font-semibold text-slate-900">
-                  {selectedOrder.table ?? "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-slate-500">
-                <span>الوقت</span>
-                <span className="font-semibold text-slate-900">
-                  {formatTime(selectedOrder.created_at)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-slate-500">
-                <span>التاريخ</span>
-                <span className="font-semibold text-slate-900">
-                  {formatDate(selectedOrder.created_at)}
-                </span>
-              </div>
-            </div>
-
-            <hr className="my-5 border-slate-200" />
-
-            <div className="text-right">
-              <p className="text-sm font-semibold text-slate-900">حالة الطلب</p>
-            </div>
-            <div className="mt-4 space-y-4 text-sm">
-              <div className="flex items-center justify-between">
-                <div className="text-right">
-                  <p className="font-semibold text-slate-900">تم الاستلام</p>
-                  <p className="text-xs text-slate-400">
-                    {formatTime(selectedOrder.created_at)}
-                  </p>
-                </div>
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-                  <FiCheckCircle />
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="text-right">
-                  <p className="font-semibold text-slate-900">قيد التحضير</p>
-                  <p className="text-xs text-slate-400">
-                    {selectedOrder.status === "PREPARING" ||
-                    selectedOrder.status === "SERVED"
-                      ? "جارٍ"
-                      : "غير نشط"}
-                  </p>
-                </div>
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-orange-50 text-orange-600">
-                  <FiClock />
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="text-right">
-                  <p className="font-semibold text-slate-900">تم التقديم</p>
-                </div>
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500">
-                  <FiPackage />
-                </span>
-              </div>
-            </div>
-
-            <hr className="my-5 border-slate-200" />
-
-            <div className="text-right">
-              <p className="text-sm font-semibold text-slate-900">المنتجات</p>
-            </div>
-            <div className="mt-4 space-y-3 text-sm">
-              {selectedOrder.items?.length ? (
-                selectedOrder.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between text-slate-700"
-                  >
-                    <div className="text-right">
-                      <p className="font-semibold">
-                        {item.qty}x {item.product_name}
-                      </p>
-                      {item.notes ? (
-                        <p className="text-xs text-slate-400">
-                          ملاحظة: {item.notes}
-                        </p>
-                      ) : null}
-                    </div>
-                    <span>{formatSar(item.line_total)}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-right text-xs text-slate-400">
-                  لا توجد منتجات.
-                </div>
-              )}
-            </div>
-
-            <hr className="my-5 border-slate-200" />
-
-            <div className="text-right">
-              <p className="text-sm font-semibold text-slate-900">ملخص الدفع</p>
-            </div>
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex items-center justify-between text-slate-700">
-                <span>إجمالي الفاتورة</span>
-                <span className="font-semibold">
-                  {formatSar(selectedOrder.total ?? selectedOrder.subtotal)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                {(() => {
-                  const payment =
-                    paymentPills[selectedOrder.payment_status] ?? {
-                      label: selectedOrder.payment_status ?? "غير معروف",
-                      className: "bg-slate-100 text-slate-500",
-                    };
-                  return (
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${payment.className}`}
-                    >
-                      {payment.label}
-                    </span>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {actionError ? (
-              <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600">
-                {actionError}
-              </div>
-            ) : null}
-
-            <div className="mt-6 space-y-3">
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-              >
-                طباعة
-              </button>
-              <button
-                type="button"
-                onClick={handleStatusChange}
-                className="w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
-              >
-                تغيير الحالة
-              </button>
-            </div>
-          </>
-        )}
-      </aside>
+        ) : null}
+        </div>
+      </section>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   toggleProductAvailability,
   updateProduct,
   type ApiCategory,
+  type ApiProductExtra,
   type ApiProductRead,
   type ApiTag,
 } from "../../services/admin-api";
@@ -44,6 +45,7 @@ type ProductRow = {
   image: string;
   isAvailable: boolean;
   tags: TagOption[];
+  extras: ProductExtraRow[];
 };
 
 type ProductForm = {
@@ -54,6 +56,21 @@ type ProductForm = {
   categoryId: string;
   tagId: string;
   image: string;
+  extras: ProductExtraForm[];
+};
+
+type ProductExtraRow = {
+  id?: number;
+  name: LocalizedText;
+  price: number;
+};
+
+type ProductExtraForm = {
+  uid: string;
+  id?: number;
+  nameAr: string;
+  nameEn: string;
+  price: string;
 };
 
 
@@ -68,6 +85,13 @@ const toLocalizedText = (
 const parseNumber = (value: string | number | null | undefined) => {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const makeExtraId = () => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `extra-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
 const buildTagCode = (value: string) => {
@@ -109,6 +133,12 @@ const mapApiTag = (tag: ApiTag): TagOption => ({
   code: tag.code,
 });
 
+const mapApiExtra = (extra: ApiProductExtra): ProductExtraRow => ({
+  id: extra.id ?? undefined,
+  name: toLocalizedText(extra.name_ar, extra.name_en),
+  price: parseNumber(extra.price),
+});
+
 const mapApiProduct = (product: ApiProductRead): ProductRow => ({
   id: product.id,
   name: toLocalizedText(product.name_ar, product.name_ar),
@@ -118,6 +148,7 @@ const mapApiProduct = (product: ApiProductRead): ProductRow => ({
   image: resolveImageUrl(product.image) || defaultProductImage,
   isAvailable: product.is_available ?? true,
   tags: product.tags ? product.tags.map(mapApiTag) : [],
+  extras: product.extras ? product.extras.map(mapApiExtra) : [],
 });
 
 
@@ -132,6 +163,16 @@ const getTagTone = (colorKey?: string | null) => {
   if (key.includes("rose") || key.includes("red"))
     return "bg-rose-50 text-rose-600";
   return "bg-slate-100 text-slate-600";
+};
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "object" && error && "message" in error) {
+    const message = String((error as { message?: string }).message || "").trim();
+    if (message) {
+      return message;
+    }
+  }
+  return fallback;
 };
 
 export default function ProductsPage() {
@@ -165,6 +206,7 @@ export default function ProductsPage() {
     categoryId: defaultCategoryId,
     tagId: "",
     image: "",
+    extras: [],
   });
 
   useEffect(() => {
@@ -275,6 +317,13 @@ export default function ProductsPage() {
       categoryId: item.categoryId,
       tagId: item.tags[0]?.id ?? "",
       image: item.image,
+      extras: item.extras.map((extra) => ({
+        uid: makeExtraId(),
+        id: extra.id,
+        nameAr: extra.name.ar,
+        nameEn: extra.name.en,
+        price: String(extra.price),
+      })),
     });
     setImageFile(null);
     setFileInputKey((prev) => prev + 1);
@@ -291,6 +340,7 @@ export default function ProductsPage() {
       categoryId: categories[0]?.id ?? "",
       tagId: "",
       image: "",
+      extras: [],
     });
     setImageFile(null);
     setFileInputKey((prev) => prev + 1);
@@ -366,6 +416,14 @@ export default function ProductsPage() {
     const existing = editingId !== null
       ? items.find((item) => item.id === editingId)
       : null;
+    const extrasPayload = form.extras
+      .map((extra) => ({
+        id: extra.id,
+        name_ar: extra.nameAr.trim(),
+        name_en: extra.nameEn.trim() || undefined,
+        price: extra.price.trim(),
+      }))
+      .filter((extra) => extra.name_ar && extra.price);
 
     const payload = {
       name_ar: trimmedAr,
@@ -374,6 +432,11 @@ export default function ProductsPage() {
       price: priceValue,
       is_available: existing?.isAvailable ?? true,
       tag_ids: tagIdValue ? [tagIdValue] : undefined,
+      ...(extrasPayload.length
+        ? { extras: extrasPayload }
+        : existing?.extras?.length
+          ? { extras: [] }
+          : {}),
     };
 
     if (editingId !== null) {
@@ -429,8 +492,8 @@ export default function ProductsPage() {
       await deleteProduct(deleteTarget.id);
       setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
       setDeleteTarget(null);
-    } catch {
-      setActionError("فشل حذف المنتج من الباك.");
+    } catch (error) {
+      setActionError(getErrorMessage(error, "فشل حذف المنتج من الباك."));
     }
   };
 
@@ -595,6 +658,103 @@ export default function ProductsPage() {
                 لو مش لاقي العلامة، اكتبها واضغط إضافة.
               </p>
             </label>
+            <div className="md:col-span-3">
+              <div className="flex items-center justify-between">
+                <p className="text-right text-sm text-slate-600">الإضافات</p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      extras: [
+                        ...prev.extras,
+                        { uid: makeExtraId(), nameAr: "", nameEn: "", price: "" },
+                      ],
+                    }))
+                  }
+                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
+                >
+                  إضافة إضافة
+                </button>
+              </div>
+              <div className="mt-3 space-y-3">
+                {form.extras.length ? (
+                  form.extras.map((extra) => (
+                    <div
+                      key={extra.uid}
+                      className="grid gap-3 rounded-2xl border border-slate-200 px-3 py-3 md:grid-cols-[1.2fr_1.2fr_0.6fr_auto]"
+                    >
+                      <input
+                        type="text"
+                        placeholder="اسم الإضافة (عربي)"
+                        value={extra.nameAr}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            extras: prev.extras.map((item) =>
+                              item.uid === extra.uid
+                                ? { ...item, nameAr: event.target.value }
+                                : item
+                            ),
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="اسم الإضافة (English)"
+                        value={extra.nameEn}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            extras: prev.extras.map((item) =>
+                              item.uid === extra.uid
+                                ? { ...item, nameEn: event.target.value }
+                                : item
+                            ),
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none"
+                      />
+                      <input
+                        type="number"
+                        placeholder="السعر"
+                        value={extra.price}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            extras: prev.extras.map((item) =>
+                              item.uid === extra.uid
+                                ? { ...item, price: event.target.value }
+                                : item
+                            ),
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            extras: prev.extras.filter(
+                              (item) => item.uid !== extra.uid
+                            ),
+                          }))
+                        }
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-rose-500"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    لا توجد إضافات. يمكنك إضافة إضافات اختيارية للمنتج.
+                  </p>
+                )}
+              </div>
+            </div>
             <label className="block text-right text-sm text-slate-600 md:col-span-3">
               صورة المنتج
               <div className="mt-2 flex flex-wrap items-center justify-end gap-3">

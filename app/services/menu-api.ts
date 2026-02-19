@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type { LocalizedText } from "../lib/i18n";
-import type { MenuCategory, MenuItem, OfferItem } from "../lib/menu-data";
+import type { MenuCategory, MenuExtra, MenuItem, OfferItem } from "../lib/menu-data";
 import { apiFetch, getAccessToken, getApiBaseUrl } from "./api-client";
 
 type Paginated<T> = {
@@ -44,6 +44,15 @@ type ApiProduct = {
   category?: ApiCategory | null;
   tags?: ApiTag[] | null;
   is_available?: boolean;
+  extras?: ApiProductExtra[] | null;
+};
+
+type ApiProductExtra = {
+  id?: number | string | null;
+  name_ar?: string | null;
+  name_en?: string | null;
+  price?: string | number | null;
+  label?: string | null;
 };
 
 type ApiOffer = {
@@ -263,6 +272,13 @@ const mapProduct = (product: ApiProduct): MenuItem => {
     product.photo ||
     product.thumbnail ||
     null;
+  const extras: MenuExtra[] = (product.extras ?? [])
+    .map((extra, index) => ({
+      id: String(extra.id ?? `extra-${index}`),
+      label: toLocalizedText(extra.name_ar ?? extra.label ?? "", extra.name_en),
+      price: parseNumber(extra.price ?? 0),
+    }))
+    .filter((extra) => extra.label.ar || extra.label.en);
   return {
     id: product.id,
     name: toLocalizedText(label, label),
@@ -270,6 +286,7 @@ const mapProduct = (product: ApiProduct): MenuItem => {
     price: parseNumber(product.price),
     category: product.category ? String(product.category.id) : "uncategorized",
     image: resolveImageUrl(rawImage) || DEFAULT_PRODUCT_IMAGE,
+    extras: extras.length ? extras : undefined,
   };
 };
 
