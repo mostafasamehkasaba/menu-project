@@ -6,10 +6,10 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Cairo } from "next/font/google";
-import type { TranslationKey } from "../lib/i18n";
-import { useLanguage } from "../components/language-provider";
-import { type TableFloor, type TableStatus } from "../lib/table-floors";
-import { createMenuReservation, fetchMenuTables } from "../services/menu-api";
+import type { TranslationKey } from "../../lib/i18n";
+import { useLanguage } from "../../components/language-provider";
+import { type TableFloor, type TableStatus } from "../../lib/table-floors";
+import { createMenuReservation, fetchMenuTables } from "../../services/menu-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -735,6 +735,7 @@ export default function BookPage() {
     </Suspense>
   );
 }
+
 
 
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
   FiAlertTriangle,
   FiChevronDown,
@@ -47,6 +48,13 @@ const callTypeMeta: Record<CallType, CallTypeMeta> = {
     icon: <FiAlertTriangle />,
     tone: "text-rose-600",
   },
+};
+
+const buildMenuLink = (table?: number | null) => {
+  if (!table) {
+    return "/menu";
+  }
+  return `/menu?table=${table}`;
 };
 
 const statusPills: Record<CallStatus, { label: string; className: string }> = {
@@ -270,6 +278,14 @@ export default function CallsPage() {
                 <div className="flex items-center justify-center gap-2">
                   {call.status === "NEW" ? (
                     <>
+                      <Link
+                        href={buildMenuLink(call.table)}
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-emerald-400 hover:text-emerald-600"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        فتح المنيو
+                      </Link>
                       <button
                         type="button"
                         onClick={() => handleCancel(call.id)}

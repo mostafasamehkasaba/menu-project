@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef } from "react";
-import { useLanguage } from "../components/language-provider";
+import { useLanguage } from "../../components/language-provider";
 
 export const useEnsureArabic = () => {
   const { lang, setLang } = useLanguage();
@@ -17,3 +17,4 @@ export const useEnsureArabic = () => {
     }
   }, [lang, setLang]);
 };
+

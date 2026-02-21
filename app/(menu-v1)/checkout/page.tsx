@@ -1,14 +1,14 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
 import { useSearchParams } from "next/navigation";
-import { getCartItems, saveCartItems, type CartItem } from "../lib/cart";
-import { formatCurrency } from "../lib/i18n";
-import { useLanguage } from "../components/language-provider";
-import { getStoredTable } from "../lib/table";
-import { createMenuOrder } from "../services/menu-api";
+import { getCartItems, saveCartItems, type CartItem } from "../../lib/cart";
+import { formatCurrency } from "../../lib/i18n";
+import { useLanguage } from "../../components/language-provider";
+import { getStoredTable } from "../../lib/table";
+import { createMenuOrder } from "../../services/menu-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -135,7 +135,7 @@ function CheckoutContent() {
     }
   };
 
-  const backIcon = dir === "rtl" ? "→" : "←";
+  const backIcon = dir === "rtl" ? "â†’" : "â†گ";
   const textAlign = dir === "rtl" ? "text-end" : "text-start";
 
   return (
@@ -165,9 +165,9 @@ function CheckoutContent() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {[
               ...(hasTableOption
-                ? [{ id: "table", label: t("serveToTable"), icon: "♡" }]
+                ? [{ id: "table", label: t("serveToTable"), icon: "â™،" }]
                 : []),
-              { id: "counter", label: t("pickupFromCounter"), icon: "🧾" },
+              { id: "counter", label: t("pickupFromCounter"), icon: "ًں§¾" },
             ].map((option) => (
               <button
                 key={option.id}
@@ -270,9 +270,9 @@ function CheckoutContent() {
           </h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {[
-              { id: "balance", label: t("balance"), icon: "◎" },
-              { id: "wallet", label: t("wallet"), icon: "👛" },
-              { id: "card", label: t("card"), icon: "💳" },
+              { id: "balance", label: t("balance"), icon: "â—ژ" },
+              { id: "wallet", label: t("wallet"), icon: "ًں‘›" },
+              { id: "card", label: t("card"), icon: "ًں’³" },
             ].map((option) => (
               <button
                 key={option.id}
@@ -450,7 +450,7 @@ function CheckoutContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-[36px] bg-white px-6 py-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600">
-              ✓
+              âœ“
             </div>
             <h3 className="mt-5 text-xl font-semibold text-slate-900">
               {t("orderSuccess")}
@@ -493,7 +493,7 @@ function CheckoutContent() {
               href="/menu"
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 px-5 py-4 text-sm font-semibold text-slate-700"
             >
-              <span>⌂</span>
+              <span>âŒ‚</span>
               {t("backToMenu")}
             </Link>
 
@@ -517,3 +517,4 @@ export default function CheckoutPage() {
     </Suspense>
   );
 }
+

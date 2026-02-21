@@ -1,12 +1,12 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Cairo } from "next/font/google";
 import { motion } from "framer-motion";
-import type { LocalizedText, TranslationKey } from "../lib/i18n";
-import { formatCurrency, getLocalizedText } from "../lib/i18n";
-import { useLanguage } from "../components/language-provider";
+import type { LocalizedText, TranslationKey } from "../../lib/i18n";
+import { formatCurrency, getLocalizedText } from "../../lib/i18n";
+import { useLanguage } from "../../components/language-provider";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -22,35 +22,35 @@ const transactions: {
 }[] = [
   {
     id: "t1",
-    label: { ar: "طلب #12345", en: "Order #12345" },
+    label: { ar: "ط·ظ„ط¨ #12345", en: "Order #12345" },
     date: "2024-01-15",
     amount: 85.5,
     type: "out",
   },
   {
     id: "t2",
-    label: { ar: "شحن المحفظة", en: "Wallet top-up" },
+    label: { ar: "ط´ط­ظ† ط§ظ„ظ…ط­ظپط¸ط©", en: "Wallet top-up" },
     date: "2024-01-14",
     amount: 200,
     type: "in",
   },
   {
     id: "t3",
-    label: { ar: "طلب #12344", en: "Order #12344" },
+    label: { ar: "ط·ظ„ط¨ #12344", en: "Order #12344" },
     date: "2024-01-13",
     amount: 120,
     type: "out",
   },
   {
     id: "t4",
-    label: { ar: "شحن المحفظة", en: "Wallet top-up" },
+    label: { ar: "ط´ط­ظ† ط§ظ„ظ…ط­ظپط¸ط©", en: "Wallet top-up" },
     date: "2024-01-10",
     amount: 300,
     type: "in",
   },
   {
     id: "t5",
-    label: { ar: "طلب #12343", en: "Order #12343" },
+    label: { ar: "ط·ظ„ط¨ #12343", en: "Order #12343" },
     date: "2024-01-09",
     amount: 65.5,
     type: "out",
@@ -82,17 +82,17 @@ const settings: {
   danger?: boolean;
   href?: string;
 }[] = [
-  { label: "editProfile", icon: "👤", chevron: true, href: "/account/edit" },
-  { label: "notifications", icon: "🔔", chevron: true, href: "/notifications" },
+  { label: "editProfile", icon: "ًں‘¤", chevron: true, href: "/account/edit" },
+  { label: "notifications", icon: "ًں””", chevron: true, href: "/notifications" },
   { label: "language", icon: "A", value: true },
-  { label: "logout", icon: "⎋", danger: true },
+  { label: "logout", icon: "âژ‹", danger: true },
 ];
 
 const socials = [
-  { label: "TikTok", icon: "♪", href: "#" },
-  { label: "WhatsApp", icon: "🟢", href: "#" },
+  { label: "TikTok", icon: "â™ھ", href: "#" },
+  { label: "WhatsApp", icon: "ًںں¢", href: "#" },
   { label: "X", icon: "X", href: "#" },
-  { label: "Instagram", icon: "◎", href: "#" },
+  { label: "Instagram", icon: "â—ژ", href: "#" },
   { label: "Facebook", icon: "f", href: "#" },
 ];
 
@@ -133,13 +133,13 @@ export default function AccountPage() {
       <section className="w-full bg-gradient-to-b from-orange-500 to-orange-600 text-white shadow-[0_18px_36px_rgba(234,106,54,0.28)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 sm:px-10">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-2xl">
-            👤
+            ًں‘¤
           </div>
           <div className="text-end">
             <h1 className="text-xl font-semibold sm:text-2xl">
               {t("myAccount")}
             </h1>
-            <p className="text-sm text-orange-100 sm:text-base">أحمد محمد</p>
+            <p className="text-sm text-orange-100 sm:text-base">ط£ط­ظ…ط¯ ظ…ط­ظ…ط¯</p>
           </div>
         </div>
       </section>
@@ -164,9 +164,9 @@ export default function AccountPage() {
 
         <section className="mx-auto mt-10 grid max-w-3xl gap-4 md:grid-cols-3">
           {[
-            { label: t("support"), icon: "🎧", href: "#" },
-            { label: t("book"), icon: "📅", href: "/book" },
-            { label: t("menu"), icon: "🍽️", href: "/menu" },
+            { label: t("support"), icon: "ًںژ§", href: "#" },
+            { label: t("book"), icon: "ًں“…", href: "/book" },
+            { label: t("menu"), icon: "ًںچ½ï¸ڈ", href: "/menu" },
           ].map((item) => (
             <Link
               key={item.label}
@@ -215,7 +215,7 @@ export default function AccountPage() {
                         : "bg-rose-100 text-rose-600"
                     }`}
                   >
-                    {item.type === "in" ? "↓" : "↑"}
+                    {item.type === "in" ? "â†“" : "â†‘"}
                   </span>
                 </div>
               </div>
@@ -265,13 +265,13 @@ export default function AccountPage() {
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-end gap-4 text-xs text-slate-500">
                   <span className="flex items-center gap-1">
-                    {item.guests} {t("guests")} 👤
+                    {item.guests} {t("guests")} ًں‘¤
                   </span>
                   <span className="flex items-center gap-1">
-                    {item.time} ⏰
+                    {item.time} âڈ°
                   </span>
                   <span className="flex items-center gap-1">
-                    {item.date} 📅
+                    {item.date} ًں“…
                   </span>
                 </div>
               </div>
@@ -347,7 +347,7 @@ export default function AccountPage() {
                         className="text-xl font-semibold text-slate-400 sm:text-2xl"
                         aria-hidden="true"
                       >
-                        ›
+                        â€؛
                       </span>
                     )}
                   </div>
@@ -413,3 +413,4 @@ export default function AccountPage() {
     </div>
   );
 }
+

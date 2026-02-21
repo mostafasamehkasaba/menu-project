@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Cairo } from "next/font/google";
-import { formatCurrency, getLocalizedText } from "../../lib/i18n";
-import { useLanguage } from "../../components/language-provider";
-import { fetchMenuCatalog } from "../../services/menu-api";
-import type { OfferItem } from "../../lib/menu-data";
+import { formatCurrency, getLocalizedText } from "../../../lib/i18n";
+import { useLanguage } from "../../../components/language-provider";
+import { fetchMenuCatalog } from "../../../services/menu-api";
+import type { OfferItem } from "../../../lib/menu-data";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -109,3 +109,4 @@ export default function OffersPage() {
     </div>
   );
 }
+

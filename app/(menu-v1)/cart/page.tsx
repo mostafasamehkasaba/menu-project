@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -9,9 +9,9 @@ import {
   saveCartItems,
   updateCartItem,
   type CartItem,
-} from "../lib/cart";
-import { formatCurrency } from "../lib/i18n";
-import { useLanguage } from "../components/language-provider";
+} from "../../lib/cart";
+import { formatCurrency } from "../../lib/i18n";
+import { useLanguage } from "../../components/language-provider";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -62,7 +62,7 @@ export default function CartPage() {
             href="/menu"
             className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-orange-500 shadow-[0_12px_24px_rgba(15,23,42,0.12)]"
           >
-            ←
+            â†گ
           </Link>
           <h1 className="text-lg font-semibold sm:text-xl">{t("myCart")}</h1>
         </header>
@@ -83,7 +83,7 @@ export default function CartPage() {
                   onClick={() => handleRemove(item.id)}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-rose-500"
                 >
-                  🗑️
+                  ًں—‘ï¸ڈ
                 </button>
                 <div className="flex items-center gap-3">
                   <button
@@ -161,16 +161,17 @@ export default function CartPage() {
           href={`/checkout?orderType=${orderType}`}
           className="mt-8 flex w-full items-center justify-center rounded-2xl bg-orange-500 py-4 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(234,106,54,0.35)]"
         >
-          {t("proceedToCheckout")} • {formatCurrency(total, lang, 2)}
+          {t("proceedToCheckout")} â€¢ {formatCurrency(total, lang, 2)}
         </Link>
       </div>
 
       <button className="fixed bottom-20 right-6 flex items-center gap-2 rounded-full bg-black px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.2)]">
         {t("talkWithUs")}
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-white">
-          💬
+          ًں’¬
         </span>
       </button>
     </div>
   );
 }
+

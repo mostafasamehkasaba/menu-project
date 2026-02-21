@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { Cairo } from "next/font/google";
-import { useLanguage } from "./components/language-provider";
+import { useLanguage } from "../components/language-provider";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { fetchMenuTables } from "./services/menu-api";
+import { fetchMenuTables } from "../services/menu-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -115,11 +115,11 @@ export default function Home() {
               !
             </div>
             <h2 className="mt-4 text-xl font-semibold text-slate-900">
-              {lang === "ar" ? "المطعم مغلق الآن" : "Restaurant is closed now"}
+              {lang === "ar" ? "ط§ظ„ظ…ط·ط¹ظ… ظ…ط؛ظ„ظ‚ ط§ظ„ط¢ظ†" : "Restaurant is closed now"}
             </h2>
             <p className="mt-2 text-sm text-slate-500">
               {lang === "ar"
-                ? "يرجى المحاولة لاحقاً."
+                ? "ظٹط±ط¬ظ‰ ط§ظ„ظ…ط­ط§ظˆظ„ط© ظ„ط§ط­ظ‚ط§ظ‹."
                 : "Please try again later."}
             </p>
           </div>
@@ -177,7 +177,7 @@ export default function Home() {
             href="/menu"
             className="flex items-center justify-center gap-3 rounded-2xl border border-orange-300 bg-white px-6 py-4 text-base font-semibold text-orange-600 shadow-[0_10px_24px_rgba(234,130,70,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(234,130,70,0.18)]"
           >
-            <span className="text-lg">🍴</span>
+            <span className="text-lg">ًںچ´</span>
             {t("viewMenuOnly")}
           </Link>
           <button
@@ -185,7 +185,7 @@ export default function Home() {
             onClick={() => setShowTablePicker(true)}
             className="flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4 text-base font-semibold text-white shadow-[0_18px_35px_rgba(234,106,54,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_40px_rgba(234,106,54,0.4)]"
           >
-            <span className="text-lg">🍽️</span>
+            <span className="text-lg">ًںچ½ï¸ڈ</span>
             {t("orderFromTable")}
           </button>
         </div>
@@ -271,3 +271,4 @@ export default function Home() {
     </div>
   );
 }
+

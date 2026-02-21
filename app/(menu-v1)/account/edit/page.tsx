@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Cairo } from "next/font/google";
-import { useLanguage } from "../../components/language-provider";
+import { useLanguage } from "../../../components/language-provider";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -55,7 +55,7 @@ export default function EditProfilePage() {
           aria-live="polite"
         >
           <span className="text-lg" aria-hidden="true">
-            ✓
+            âœ“
           </span>
           <span>{t("profileUpdatedSuccess")}</span>
         </div>
@@ -66,7 +66,7 @@ export default function EditProfilePage() {
             href="/account"
             className="flex items-center gap-2 text-sm font-semibold text-orange-600"
           >
-            <span aria-hidden="true">{lang === "ar" ? "→" : "←"}</span>
+            <span aria-hidden="true">{lang === "ar" ? "â†’" : "â†گ"}</span>
             {t("backToAccount")}
           </Link>
           <h1
@@ -167,3 +167,4 @@ export default function EditProfilePage() {
     </div>
   );
 }
+

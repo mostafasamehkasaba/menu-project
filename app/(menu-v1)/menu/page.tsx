@@ -3,16 +3,16 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Cairo } from "next/font/google";
-import { formatCurrency, getLocalizedText } from "../lib/i18n";
-import { getStoredTable, parseTableParam, setStoredTable } from "../lib/table";
-import { useLanguage } from "../components/language-provider";
+import { formatCurrency, getLocalizedText } from "../../lib/i18n";
+import { getStoredTable, parseTableParam, setStoredTable } from "../../lib/table";
+import { useLanguage } from "../../components/language-provider";
 import { useSearchParams } from "next/navigation";
-import ChatbotSection from "../components/chatbot-section";
+import ChatbotSection from "../../components/chatbot-section";
 import {
   createCallRequest,
   fetchMenuCatalog,
   type MenuCatalog,
-} from "../services/menu-api";
+} from "../../services/menu-api";
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   weight: ["400", "600", "700"],
@@ -504,6 +504,7 @@ export default function MenuPage() {
     </Suspense>
   );
 }
+
 
 
 

@@ -1,14 +1,17 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { FiCode, FiCopy, FiDownload } from "react-icons/fi";
 import {
   fetchQrCodes,
   fetchQrSettings,
+  fetchTables,
   generateQrCode,
+  uploadQrLogo,
   updateQrSettings,
   type ApiQRCode,
   type ApiQRSettings,
+  type ApiTable,
 } from "../../services/admin-api";
 import { getApiBaseUrl } from "../../services/api-client";
 
@@ -25,39 +28,51 @@ const resolveUrl = (value?: string | null) => {
 
 export default function QrPage() {
   const [settings, setSettings] = useState<ApiQRSettings | null>(null);
-  const [qrCodes, setQrCodes] = useState<ApiQRCode[]>([]);
   const [selectedQr, setSelectedQr] = useState<ApiQRCode | null>(null);
+  const [tables, setTables] = useState<ApiTable[]>([]);
   const [type, setType] = useState<ApiQRCode["type"]>("MENU_ONLY");
   const [tableId, setTableId] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [includeLogo, setIncludeLogo] = useState(true);
   const [coloredFrame, setColoredFrame] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       setLoadError(null);
-      const [settingsData, qrData] = await Promise.all([
+      const [settingsData, qrData, tablesData] = await Promise.all([
         fetchQrSettings(),
         fetchQrCodes(),
+        fetchTables(),
       ]);
       if (!settingsData) {
         setLoadError("تعذر تحميل إعدادات QR. تأكد من الاتصال والتوكن.");
       }
       setSettings(settingsData);
       if (settingsData) {
+        const logoAvailable = Boolean(settingsData.logo);
+        setBaseUrl(settingsData.base_url ?? "");
         setType(settingsData.default_qr_type);
-        setIncludeLogo(Boolean(settingsData.include_logo_default));
+        setIncludeLogo(Boolean(settingsData.include_logo_default) && logoAvailable);
         setColoredFrame(Boolean(settingsData.colored_frame_default));
       }
       if (!qrData) {
         setLoadError((prev) =>
           prev ? prev : "تعذر تحميل رموز QR الحالية."
         );
-        setQrCodes([]);
       } else {
-        setQrCodes(qrData);
         setSelectedQr(qrData[0] ?? null);
+      }
+      if (tablesData) {
+        setTables(tablesData);
+      } else {
+        setTables([]);
       }
     };
     load();
@@ -67,21 +82,54 @@ export default function QrPage() {
     return resolveUrl(selectedQr?.png_file || selectedQr?.svg_file || "");
   }, [selectedQr]);
 
-  const handleGenerate = async () => {
-    if (type === "TABLE_MENU" && !tableId) {
+  const resolveType = (value?: unknown): ApiQRCode["type"] | null => {
+    if (value === "MENU_ONLY" || value === "TABLE_MENU") {
+      return value;
+    }
+    return null;
+  };
+  const hasLogo = Boolean(settings?.logo);
+  const logoName = logoFile?.name ?? "";
+
+  const handleGenerate = async (overrideType?: ApiQRCode["type"] | unknown) => {
+    if (includeLogo && !hasLogo) {
+      setActionError("لا يوجد شعار مرفوع. عطّل تضمين الشعار أو ارفع الشعار أولاً.");
+      return;
+    }
+    const nextType = resolveType(overrideType) ?? type;
+    if (nextType === "TABLE_MENU" && !tableId) {
       setActionError("اختر رقم الطاولة قبل إنشاء QR.");
+      return;
+    }
+    const selectedTable =
+      tables.find((table) => String(table.id) === tableId) ??
+      tables.find((table) => String(table.number) === tableId);
+    const tableIdValue = selectedTable?.id ?? Number(tableId);
+    const tableNumberValue = selectedTable?.number ?? Number(tableId);
+    if (
+      nextType === "TABLE_MENU" &&
+      !Number.isFinite(tableIdValue) &&
+      !Number.isFinite(tableNumberValue)
+    ) {
+      setActionError("رقم الطاولة غير صالح.");
       return;
     }
     setActionError(null);
     try {
       const qr = await generateQrCode({
-        type,
-        table_id: type === "TABLE_MENU" ? Number(tableId) : null,
+        type: nextType,
+        table_id:
+          nextType === "TABLE_MENU" && Number.isFinite(tableIdValue)
+            ? tableIdValue
+            : undefined,
+        table_number:
+          nextType === "TABLE_MENU" && Number.isFinite(tableNumberValue)
+            ? tableNumberValue
+            : undefined,
         include_logo: includeLogo,
         colored_frame: coloredFrame,
       });
       setSelectedQr(qr);
-      setQrCodes((prev) => [qr, ...prev]);
     } catch (error) {
       const message =
         (error as { message?: string })?.message ?? "تعذر إنشاء رمز QR.";
@@ -90,34 +138,101 @@ export default function QrPage() {
   };
 
   const handleCopyBaseUrl = async () => {
-    if (!settings?.base_url) {
+    const value = baseUrl || settings?.base_url;
+    if (!value) {
       return;
     }
     try {
-      await navigator.clipboard.writeText(settings.base_url);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+        return;
+      }
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.setAttribute("readonly", "true");
+      textarea.style.position = "absolute";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
     } catch {
       // ignore
     }
   };
 
-  const handleToggleSetting = async (key: "include_logo_default" | "colored_frame_default") => {
-    if (!settings) {
+  const handleToggleSetting = (key: "include_logo_default" | "colored_frame_default") => {
+    if (key === "include_logo_default") {
+      if (!includeLogo && !hasLogo) {
+        setSettingsError("لا يوجد شعار مرفوع لتضمينه. ارفع الشعار أولاً.");
+        return;
+      }
+      setIncludeLogo((prev) => !prev);
+    } else {
+      setColoredFrame((prev) => !prev);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    const trimmedBaseUrl = baseUrl.trim();
+    if (!trimmedBaseUrl) {
+      setSettingsError("ادخل رابط القائمة أولاً.");
       return;
     }
-    const nextValue =
-      key === "include_logo_default" ? !includeLogo : !coloredFrame;
+    if (includeLogo && !hasLogo) {
+      setSettingsError("لا يوجد شعار مرفوع لتضمينه. ارفع الشعار أولاً.");
+      return;
+    }
+    setSettingsError(null);
+    setIsSavingSettings(true);
     try {
       const updated = await updateQrSettings({
-        [key]: nextValue,
+        base_url: trimmedBaseUrl,
+        default_qr_type: type,
+        include_logo_default: includeLogo,
+        colored_frame_default: coloredFrame,
       });
       setSettings(updated);
-      if (key === "include_logo_default") {
-        setIncludeLogo(Boolean(updated.include_logo_default));
-      } else {
-        setColoredFrame(Boolean(updated.colored_frame_default));
-      }
-    } catch {
-      // ignore
+      setBaseUrl(updated.base_url ?? trimmedBaseUrl);
+      setType(updated.default_qr_type ?? type);
+      setIncludeLogo(Boolean(updated.include_logo_default));
+      setColoredFrame(Boolean(updated.colored_frame_default));
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ?? "تعذر حفظ الإعدادات.";
+      setSettingsError(message);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setLogoFile(file);
+    setLogoError(null);
+  };
+
+  const handleUploadLogo = async () => {
+    if (!logoFile) {
+      setLogoError("اختر ملف الشعار أولاً.");
+      return;
+    }
+    setLogoError(null);
+    setIsUploadingLogo(true);
+    try {
+      const updated = await uploadQrLogo(logoFile);
+      setSettings(updated);
+      setBaseUrl(updated.base_url ?? baseUrl);
+      setType(updated.default_qr_type ?? type);
+      setIncludeLogo(Boolean(updated.include_logo_default));
+      setColoredFrame(Boolean(updated.colored_frame_default));
+      setLogoFile(null);
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ?? "تعذر رفع الشعار.";
+      setLogoError(message);
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
@@ -136,16 +251,17 @@ export default function QrPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="grid gap-6 lg:grid-cols-[1.05fr_1fr]">
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-6 lg:self-start">
           <div className="text-right">
             <h2 className="text-sm font-semibold text-slate-900">معاينة رمز QR</h2>
-            <p className="text-xs text-slate-400">معاينة الرمز قبل التحميل</p>
+            <p className="text-xs text-slate-400">عاين الرمز قبل التحميل</p>
           </div>
 
           <div className="mt-6 flex items-center justify-center">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
               {previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={previewUrl}
                   alt="QR"
@@ -166,7 +282,7 @@ export default function QrPage() {
                 : "رمز القائمة"}
             </p>
             <p className="text-xs text-slate-400">
-              اضغط على "إنشاء" لتوليد الرمز
+              اضغط على &quot;إنشاء&quot; لتوليد الرمز
             </p>
           </div>
 
@@ -190,71 +306,79 @@ export default function QrPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-right">
-            <h2 className="text-sm font-semibold text-slate-900">إنشاء سريع</h2>
-          </div>
+        <div className="space-y-6">
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="text-right">
+              <h2 className="text-sm font-semibold text-slate-900">إنشاء سريع</h2>
+            </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {[
-              {
-                title: "رمز القائمة الرئيسية",
-                note: "عرض فقط",
-                tone: "bg-blue-50 text-blue-600",
-                type: "MENU_ONLY" as const,
-              },
-              {
-                title: "رمز طاولة",
-                note: "حدد رقم طاولة",
-                tone: "bg-emerald-50 text-emerald-600",
-                type: "TABLE_MENU" as const,
-              },
-              {
-                title: "إعادة إنشاء",
-                note: "آخر إعدادات",
-                tone: "bg-orange-50 text-orange-600",
-                type,
-              },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="rounded-2xl border border-slate-200 p-5 text-center"
-              >
-                <span className={`mx-auto grid h-12 w-12 place-items-center rounded-full ${item.tone}`}>
-                  <FiCode />
-                </span>
-                <p className="mt-3 text-sm font-semibold text-slate-900">
-                  {item.title}
-                </p>
-                <p className="text-xs text-slate-400">{item.note}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setType(item.type);
-                    handleGenerate();
-                  }}
-                  className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              {[
+                {
+                  title: "رمز القائمة الرئيسية",
+                  note: "عرض فقط",
+                  tone: "bg-blue-50 text-blue-600",
+                  type: "MENU_ONLY" as const,
+                },
+                {
+                  title: "رمز طاولة",
+                  note: "حدد رقم طاولة",
+                  tone: "bg-emerald-50 text-emerald-600",
+                  type: "TABLE_MENU" as const,
+                },
+                {
+                  title: "إعادة إنشاء",
+                  note: "آخر إعدادات",
+                  tone: "bg-orange-50 text-orange-600",
+                  type,
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-slate-200 p-5 text-center"
                 >
-                  تحميل
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
+                  <span className={`mx-auto grid h-12 w-12 place-items-center rounded-full ${item.tone}`}>
+                    <FiCode />
+                  </span>
+                  <p className="mt-3 text-sm font-semibold text-slate-900">
+                    {item.title}
+                  </p>
+                  <p className="text-xs text-slate-400">{item.note}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setType(item.type);
+                      handleGenerate(item.type);
+                    }}
+                    className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+                  >
+                    توليد
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-right">
-            <h2 className="text-sm font-semibold text-slate-900">إعدادات رمز QR</h2>
-            <p className="text-xs text-slate-400">
-              حدد نوع رمز QR الذي تريد إنشاؤه
-            </p>
-          </div>
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="text-right">
+              <h2 className="text-sm font-semibold text-slate-900">إعدادات رمز QR</h2>
+              <p className="text-xs text-slate-400">
+                حدد إعدادات الرمز الذي تريد توليده
+              </p>
+            </div>
 
-          <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-4">
             <div>
               <p className="text-sm font-semibold text-slate-700">رابط القائمة</p>
               <div className="mt-2 flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-                <span className="break-all">{settings?.base_url ?? "-"}</span>
+                <input
+                  type="text"
+                  value={baseUrl}
+                  onChange={(event) => setBaseUrl(event.target.value)}
+                  onFocus={(event) => event.currentTarget.select()}
+                  className="w-full bg-transparent text-right outline-none"
+                  placeholder="-"
+                />
                 <button
                   type="button"
                   onClick={handleCopyBaseUrl}
@@ -282,15 +406,101 @@ export default function QrPage() {
             {type === "TABLE_MENU" ? (
               <div>
                 <p className="text-sm font-semibold text-slate-700">رقم الطاولة</p>
-                <input
-                  type="number"
-                  value={tableId}
-                  onChange={(event) => setTableId(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 outline-none"
-                  placeholder="مثال: 5"
-                />
+                {tables.length ? (
+                  <select
+                    value={tableId}
+                    onChange={(event) => setTableId(event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 outline-none"
+                  >
+                    <option value="">اختر طاولة</option>
+                    {tables.map((table) => (
+                      <option key={table.id} value={table.id}>
+                        طاولة {table.number} - {table.capacity} مقاعد
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    value={tableId}
+                    onChange={(event) => setTableId(event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 outline-none"
+                    placeholder="مثال: 5"
+                  />
+                )}
               </div>
             ) : null}
+
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-700">شعار المطعم</p>
+                {hasLogo ? (
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    شعار مرفوع
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                    لا يوجد شعار
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="grid h-16 w-16 place-items-center rounded-2xl border border-slate-200 bg-white">
+                      {settings?.logo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={resolveUrl(settings.logo)}
+                          alt="Logo"
+                          className="h-12 w-12 object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-400">لا يوجد</span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-slate-900">
+                        ارفع شعار المطعم
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        PNG أو JPG، يفضل 300x300
+                      </p>
+                      {logoName ? (
+                        <p className="mt-1 text-xs text-emerald-600">
+                          الملف المختار: {logoName}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoChange}
+                        className="sr-only"
+                      />
+                      اختيار ملف
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleUploadLogo}
+                      disabled={isUploadingLogo}
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-emerald-200 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isUploadingLogo ? "جارٍ الرفع..." : "رفع الشعار"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {logoError ? (
+                <div className="mt-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-2 text-right text-sm text-rose-600">
+                  {logoError}
+                </div>
+              ) : null}
+            </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -309,6 +519,11 @@ export default function QrPage() {
                   />
                 </button>
               </div>
+              {!hasLogo ? (
+                <p className="text-xs text-rose-500">
+                  لا يوجد شعار مرفوع. ارفع الشعار أولاً لتفعيل التضمين.
+                </p>
+              ) : null}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-700">إطار ملون</span>
                 <button
@@ -333,18 +548,38 @@ export default function QrPage() {
               </div>
             ) : null}
 
-            <button
-              type="button"
-              onClick={handleGenerate}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white"
-            >
-              إنشاء رمز QR
-              <FiCode />
-            </button>
-          </div>
-        </section>
+            {settingsError ? (
+              <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-2 text-right text-sm text-rose-600">
+                {settingsError}
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                disabled={isSavingSettings}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSavingSettings ? "جارٍ الحفظ..." : "حفظ الإعدادات"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerate()}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white"
+              >
+                إنشاء رمز QR
+                <FiCode />
+              </button>
+            </div>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );
 }
+
+
+
 

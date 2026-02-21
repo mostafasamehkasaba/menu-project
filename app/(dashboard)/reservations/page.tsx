@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { FiCalendar, FiCheckCircle, FiClock } from "react-icons/fi";
 import {
   createReservation,
@@ -64,6 +65,13 @@ const formatTime = (value?: string | null) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+const buildMenuLink = (table?: number | null) => {
+  if (!table) {
+    return "/menu";
+  }
+  return `/menu?table=${table}`;
 };
 
 export default function ReservationsPage() {
@@ -417,10 +425,21 @@ export default function ReservationsPage() {
                   {status.label}
                 </span>
               </div>
-              <div className="flex justify-center">
-                <button className="rounded-xl border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
-                  تفاصيل
-                </button>
+                            <div className="flex justify-center">
+                {reservation.table ? (
+                  <Link
+                    href={buildMenuLink(reservation.table)}
+                    className="rounded-xl border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-emerald-400 hover:text-emerald-600"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    فتح المنيو
+                  </Link>
+                ) : (
+                  <span className="rounded-xl border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-400">
+                    بدون طاولة
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -449,4 +468,7 @@ export default function ReservationsPage() {
     </div>
   );
 }
+
+
+
 

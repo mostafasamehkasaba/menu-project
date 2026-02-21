@@ -197,9 +197,21 @@ export const apiFetch = async <T>(
   if (!response.ok) {
     let message = response.statusText || "Request failed";
     try {
-      const payload = (await response.json()) as { detail?: string };
-      if (payload?.detail) {
-        message = payload.detail;
+      const payload = (await response.json()) as Record<string, unknown>;
+      if (typeof payload === "string") {
+        message = payload;
+      } else if (payload?.detail) {
+        message = String(payload.detail);
+      } else if (payload?.message) {
+        message = String(payload.message);
+      } else if (payload?.error) {
+        message = String(payload.error);
+      } else if (payload?.errors) {
+        const text = JSON.stringify(payload.errors);
+        message = text.length > 400 ? `${text.slice(0, 400)}…` : text;
+      } else if (Object.keys(payload).length) {
+        const text = JSON.stringify(payload);
+        message = text.length > 400 ? `${text.slice(0, 400)}…` : text;
       }
     } catch {
       // ignore body parsing errors

@@ -292,6 +292,8 @@ type UserUpdatePayload = {
 type QrGeneratePayload = {
   type: "MENU_ONLY" | "TABLE_MENU";
   table_id?: number | null;
+  table_number?: number | null;
+  table?: number | null;
   include_logo?: boolean;
   colored_frame?: boolean;
 };
@@ -970,10 +972,97 @@ export const toggleUserActive = async (id: number): Promise<ApiUser> => {
 export const generateQrCode = async (
   payload: QrGeneratePayload
 ): Promise<ApiQRCode> => {
-  return apiGet<ApiQRCode>("/api/qr/generate/", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  const sanitizeBody = (value: Record<string, unknown>) => {
+    const sanitized: Record<string, unknown> = {};
+    Object.entries(value).forEach(([key, entry]) => {
+      if (entry === null || typeof entry === "undefined") {
+        return;
+      }
+      if (typeof entry === "number" && !Number.isFinite(entry)) {
+        return;
+      }
+      sanitized[key] = entry;
+    });
+    return sanitized;
+  };
+
+  const isRetryable = (error: unknown) => {
+    const code =
+      typeof error === "object" && error && "status" in error
+        ? Number((error as { status?: number }).status)
+        : null;
+    return code === 400 || code === 404 || code === 405 || code === 415;
+  };
+
+  const basePayload = {
+    type: payload.type,
+    include_logo: payload.include_logo,
+    colored_frame: payload.colored_frame,
+  };
+  const tableId = Number.isFinite(payload.table_id ?? NaN)
+    ? payload.table_id
+    : null;
+  const tableNumber = Number.isFinite(payload.table_number ?? NaN)
+    ? payload.table_number
+    : null;
+  const tableValue = Number.isFinite(payload.table ?? NaN) ? payload.table : null;
+  const fallbackTable = tableValue ?? tableId ?? tableNumber;
+
+  const candidates: Record<string, unknown>[] = [];
+  const addCandidate = (
+    fullValue: Record<string, unknown>,
+    minimalValue: Record<string, unknown>
+  ) => {
+    candidates.push(fullValue);
+    candidates.push(minimalValue);
+  };
+
+  if (payload.type === "TABLE_MENU") {
+    if (tableId !== null) {
+      addCandidate(
+        { ...basePayload, table_id: tableId },
+        { type: payload.type, table_id: tableId }
+      );
+    }
+    if (tableNumber !== null) {
+      addCandidate(
+        { ...basePayload, table_number: tableNumber },
+        { type: payload.type, table_number: tableNumber }
+      );
+    }
+    if (fallbackTable !== null) {
+      addCandidate(
+        { ...basePayload, table: fallbackTable },
+        { type: payload.type, table: fallbackTable }
+      );
+    }
+    if (!candidates.length) {
+      candidates.push(basePayload);
+      candidates.push({ type: payload.type });
+    }
+  } else {
+    candidates.push(basePayload);
+    candidates.push({ type: payload.type });
+  }
+
+  let lastError: unknown = null;
+  for (const candidate of candidates) {
+    try {
+      return await apiGet<ApiQRCode>("/api/qr/generate/", {
+        method: "POST",
+        body: JSON.stringify(sanitizeBody(candidate)),
+      });
+    } catch (error) {
+      lastError = error;
+      if (!isRetryable(error)) {
+        throw error;
+      }
+    }
+  }
+  if (lastError) {
+    throw lastError;
+  }
+  throw new Error("QR generate failed.");
 };
 
 export const updateQrSettings = async (
@@ -982,5 +1071,16 @@ export const updateQrSettings = async (
   return apiGet<ApiQRSettings>("/api/qr/settings/", {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+};
+
+export const uploadQrLogo = async (
+  logoFile: File
+): Promise<ApiQRSettings> => {
+  const data = new FormData();
+  data.append("logo", logoFile);
+  return apiGet<ApiQRSettings>("/api/qr/settings/", {
+    method: "PATCH",
+    body: data,
   });
 };

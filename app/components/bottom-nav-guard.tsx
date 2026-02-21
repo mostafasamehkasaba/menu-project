@@ -21,8 +21,12 @@ export default function BottomNavGuard() {
     "/settings",
     "/qr",
   ];
+  const hideBottomNavRoutes = ["/menu-v2", "/menu-v3"];
 
   if (adminRoutes.some((route) => pathname.startsWith(route))) {
+    return null;
+  }
+  if (hideBottomNavRoutes.some((route) => pathname.startsWith(route))) {
     return null;
   }
 

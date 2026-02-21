@@ -16,6 +16,7 @@ import {
   FiShoppingCart,
   FiTag,
   FiUsers,
+  FiX,
 } from "react-icons/fi";
 
 const sidebarItems = [
@@ -33,23 +34,49 @@ const sidebarItems = [
   { label: "الإعدادات", href: "/settings", Icon: FiSettings },
 ];
 
-export default function DashboardSidebar() {
+type DashboardSidebarProps = {
+  className?: string;
+  showClose?: boolean;
+  onClose?: () => void;
+};
+
+export default function DashboardSidebar({
+  className = "",
+  showClose = false,
+  onClose,
+}: DashboardSidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="h-fit rounded-3xl border border-slate-200 bg-white px-4 py-6 shadow-sm lg:order-1 lg:sticky lg:top-6">
-      <div className="flex flex-row-reverse items-center justify-end gap-3 text-right">
-        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500 text-white">
-          <FiCoffee />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-slate-900">مطعم الذواقة</p>
-          <p className="text-xs text-slate-400">لوحة التحكم</p>
+    <aside
+      className={`h-fit rounded-3xl border border-slate-200 bg-white px-4 py-6 shadow-sm lg:order-1 lg:sticky lg:top-6 ${className}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        {showClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-600 lg:hidden"
+            aria-label="إغلاق القائمة"
+          >
+            <FiX />
+          </button>
+        ) : (
+          <span className="h-9 w-9" />
+        )}
+        <div className="flex flex-row-reverse items-center justify-end gap-3 text-right">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500 text-white">
+            <FiCoffee />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-900">مطعم الذواقة</p>
+            <p className="text-xs text-slate-400">لوحة التحكم</p>
+          </div>
         </div>
       </div>
 
       <nav
-        className="mt-6 flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:gap-2 lg:overflow-visible"
+        className="mt-6 flex flex-col gap-2"
         dir="rtl"
       >
         {sidebarItems.map((item) => {

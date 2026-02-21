@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
-import { addToCart } from "../../lib/cart";
-import type { MenuItem } from "../../lib/menu-data";
-import { formatCurrency, getLocalizedText } from "../../lib/i18n";
-import { useLanguage } from "../../components/language-provider";
-import { fetchMenuItemById } from "../../services/menu-api";
+import { addToCart } from "../../../lib/cart";
+import type { MenuItem } from "../../../lib/menu-data";
+import { formatCurrency, getLocalizedText } from "../../../lib/i18n";
+import { useLanguage } from "../../../components/language-provider";
+import { fetchMenuItemById } from "../../../services/menu-api";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -271,4 +271,5 @@ export default function MenuItemPage() {
     </div>
   );
 }
+
 

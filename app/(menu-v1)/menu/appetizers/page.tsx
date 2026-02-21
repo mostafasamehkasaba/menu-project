@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Cairo } from "next/font/google";
-import type { LocalizedText } from "../../lib/i18n";
-import { formatCurrency, getLocalizedText } from "../../lib/i18n";
-import { useLanguage } from "../../components/language-provider";
-import { fetchMenuCatalog } from "../../services/menu-api";
-import type { MenuCategory, MenuItem } from "../../lib/menu-data";
+import type { LocalizedText } from "../../../lib/i18n";
+import { formatCurrency, getLocalizedText } from "../../../lib/i18n";
+import { useLanguage } from "../../../components/language-provider";
+import { fetchMenuCatalog } from "../../../services/menu-api";
+import type { MenuCategory, MenuItem } from "../../../lib/menu-data";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -22,13 +22,13 @@ const categories: {
   active?: boolean;
 }[] = [
   { id: "all", label: { ar: "الكل", en: "All" }, icon: "✦", href: "/menu" },
-  { id: "apps", label: { ar: "مقبلات", en: "Appetizers" }, icon: "🍟", href: "/menu/appetizers" },
-  { id: "mains", label: { ar: "وجبات رئيسية", en: "Mains" }, icon: "🍔", active: true, href: "/menu/mains" },
+  { id: "apps", label: { ar: "مقبلات", en: "Appetizers" }, icon: "🍟", active: true, href: "/menu/appetizers" },
+  { id: "mains", label: { ar: "وجبات رئيسية", en: "Mains" }, icon: "🍔", href: "/menu/mains" },
   { id: "drinks", label: { ar: "مشروبات", en: "Drinks" }, icon: "🥤", href: "/menu/drinks" },
   { id: "desserts", label: { ar: "حلويات", en: "Desserts" }, icon: "🍰", href: "/menu" },
 ];
 
-export default function MainsPage() {
+export default function AppetizersPage() {
   const { dir, lang, t } = useLanguage();
   const [catalog, setCatalog] = useState<{
     categories: MenuCategory[];
@@ -65,10 +65,9 @@ export default function MainsPage() {
       const labelAr = (category.label.ar ?? "").toLowerCase();
       const labelEn = (category.label.en ?? "").toLowerCase();
       return (
-        labelAr.includes("رئيس") ||
-        labelEn.includes("main") ||
-        labelEn.includes("entree") ||
-        labelEn.includes("meal")
+        labelAr.includes("مقبل") ||
+        labelEn.includes("appet") ||
+        labelEn.includes("starter")
       );
     });
     return match?.id ?? "";
@@ -89,7 +88,7 @@ export default function MainsPage() {
       <div className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-xl font-semibold sm:text-2xl">
-            {t("mainsPageTitle")}
+            {t("appetizersPageTitle")}
           </h1>
           <div className="flex flex-wrap items-center gap-3">
             {categories.map((category) => (
@@ -170,3 +169,4 @@ export default function MainsPage() {
     </div>
   );
 }
+

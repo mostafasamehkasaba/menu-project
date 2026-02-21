@@ -1,11 +1,19 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FiBell, FiGlobe, FiLogOut, FiPlus, FiSearch } from "react-icons/fi";
+import { FiBell, FiGlobe, FiLogOut, FiMenu, FiPlus, FiSearch } from "react-icons/fi";
 import { clearAccessToken } from "../services/api-client";
 
-export default function DashboardNavbar() {
+type DashboardNavbarProps = {
+  onToggleSidebar?: () => void;
+  showSidebarToggle?: boolean;
+};
+
+export default function DashboardNavbar({
+  onToggleSidebar,
+  showSidebarToggle = false,
+}: DashboardNavbarProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(true);
 
@@ -45,9 +53,21 @@ export default function DashboardNavbar() {
   return (
     <header className="rounded-3xl border border-slate-200 bg-white/80 px-4 py-4 shadow-sm backdrop-blur sm:px-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="order-1 text-right lg:order-1">
-          <p className="text-sm font-semibold text-slate-900">لوحة التحكم</p>
-          <p className="text-xs text-slate-400">الرئيسية / لوحة التحكم</p>
+        <div className="order-1 flex items-center justify-between gap-3 lg:order-1">
+          <div className="text-right">
+            <p className="text-sm font-semibold text-slate-900">لوحة التحكم</p>
+            <p className="text-xs text-slate-400">الرئيسية / لوحة التحكم</p>
+          </div>
+          {showSidebarToggle ? (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-600 lg:hidden"
+              aria-label="فتح القائمة"
+            >
+              <FiMenu />
+            </button>
+          ) : null}
         </div>
 
         <div className="order-2 w-full flex-1 lg:order-2">
@@ -104,4 +124,3 @@ export default function DashboardNavbar() {
     </header>
   );
 }
-
