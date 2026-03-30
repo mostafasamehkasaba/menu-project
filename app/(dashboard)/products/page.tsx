@@ -1,0 +1,1236 @@
+﻿"use client";
+
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import type { LocalizedText } from "../../lib/i18n";
+import { formatCurrency, getLocalizedText } from "../../lib/i18n";
+import { useLanguage } from "../../components/language-provider";
+import {
+  createProduct,
+  createTag,
+  deleteTag,
+  deleteProduct,
+  fetchCategories,
+  fetchProduct,
+  fetchProductsPage,
+  fetchTags,
+  toggleProductAvailability,
+  updateProduct,
+  type ApiCategory,
+  type ApiProductExtra,
+  type ApiProductRead,
+  type ApiTag,
+} from "../../services/admin-api";
+import { getApiBaseUrl } from "../../services/api-client";
+import { FiEdit2, FiPlus, FiSearch, FiTrash2 } from "react-icons/fi";
+
+const defaultProductImage = "/images/placeholder.jpg";
+
+type CategoryOption = {
+  id: string;
+  label: LocalizedText;
+  isActive?: boolean;
+};
+
+type TagOption = {
+  id: string;
+  label: LocalizedText;
+  colorKey?: string | null;
+  code?: string | null;
+};
+
+type ProductRow = {
+  id: number;
+  name: LocalizedText;
+  desc: LocalizedText;
+  price: number;
+  categoryId: string;
+  image: string;
+  isAvailable: boolean;
+  tags: TagOption[];
+  extras: ProductExtraRow[];
+};
+
+type ProductForm = {
+  nameAr: string;
+  nameEn: string;
+  descAr: string;
+  price: string;
+  categoryId: string;
+  tagId: string;
+  image: string;
+  extras: ProductExtraForm[];
+};
+
+type ProductExtraRow = {
+  id?: number;
+  name: LocalizedText;
+  price: number;
+};
+
+type ProductExtraForm = {
+  uid: string;
+  id?: number;
+  nameAr: string;
+  nameEn: string;
+  price: string;
+};
+
+
+const toLocalizedText = (
+  arValue?: string | null,
+  enValue?: string | null
+): LocalizedText => ({
+  ar: arValue?.trim() || "",
+  en: enValue?.trim() || arValue?.trim() || "",
+});
+
+const parseNumber = (value: string | number | null | undefined) => {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const makeExtraId = () => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `extra-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const buildTagCode = (value: string) => {
+  const normalized = value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || `tag-${Date.now()}`;
+};
+
+const resolveImageUrl = (image?: string | null) => {
+  if (!image) {
+    return null;
+  }
+  if (/^https?:\/\//i.test(image)) {
+    return image;
+  }
+  const apiBase = getApiBaseUrl();
+  if (!apiBase) {
+    return image;
+  }
+  const normalized = image.startsWith("/") ? image : `/${image}`;
+  return `${apiBase}${normalized}`;
+};
+
+const mapApiCategory = (category: ApiCategory): CategoryOption => ({
+  id: String(category.id),
+  label: toLocalizedText(category.name_ar, category.name_en),
+  isActive: category.is_active ?? true,
+});
+
+const mapApiTag = (tag: ApiTag): TagOption => ({
+  id: String(tag.id),
+  label: toLocalizedText(tag.name_ar, tag.name_ar),
+  colorKey: tag.color_key ?? null,
+  code: tag.code,
+});
+
+const mapApiExtra = (extra: ApiProductExtra): ProductExtraRow => {
+  const fallback = extra.name ?? extra.title ?? extra.label ?? "";
+  return {
+    id: extra.id ?? undefined,
+    name: toLocalizedText(extra.name_ar ?? fallback, extra.name_en ?? fallback),
+    price: parseNumber(extra.price),
+  };
+};
+
+const pickProductExtras = (product: ApiProductRead): ApiProductExtra[] => {
+  const raw = product as Record<string, unknown>;
+  const candidates: unknown[] = [
+    product.extras,
+    product.options,
+    product.addons,
+    product.additions,
+    raw.extra_items,
+    raw.extra_options,
+    raw.product_extras,
+    raw.product_addons,
+    raw.add_ons,
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate as ApiProductExtra[];
+    }
+  }
+  return [];
+};
+
+const mapApiProduct = (product: ApiProductRead): ProductRow => {
+  const extraSource = pickProductExtras(product);
+  return {
+    id: product.id,
+    name: toLocalizedText(product.name_ar, product.name_ar),
+    desc: toLocalizedText(product.description_ar ?? "", product.description_ar),
+  price: parseNumber(product.price),
+  categoryId: product.category ? String(product.category.id) : "uncategorized",
+    image: resolveImageUrl(product.image) || defaultProductImage,
+    isAvailable: product.is_available ?? true,
+    tags: product.tags ? product.tags.map(mapApiTag) : [],
+    extras: extraSource.length ? extraSource.map(mapApiExtra) : [],
+  };
+};
+
+
+const getTagTone = (colorKey?: string | null) => {
+  const key = (colorKey || "").toLowerCase();
+  if (key.includes("blue")) return "bg-blue-50 text-blue-600";
+  if (key.includes("green") || key.includes("emerald"))
+    return "bg-emerald-50 text-emerald-600";
+  if (key.includes("orange")) return "bg-orange-50 text-orange-600";
+  if (key.includes("yellow")) return "bg-yellow-50 text-yellow-700";
+  if (key.includes("purple")) return "bg-purple-50 text-purple-600";
+  if (key.includes("rose") || key.includes("red"))
+    return "bg-rose-50 text-rose-600";
+  return "bg-slate-100 text-slate-600";
+};
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "object" && error && "message" in error) {
+    const message = String((error as { message?: string }).message || "").trim();
+    if (message) {
+      return message;
+    }
+  }
+  return fallback;
+};
+
+export default function ProductsPage() {
+  const { lang } = useLanguage();
+  const [items, setItems] = useState<ProductRow[]>([]);
+  const [nextPath, setNextPath] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [tags, setTags] = useState<TagOption[]>([]);
+  const [newTagName, setNewTagName] = useState("");
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+  const [query, setQuery] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [debugProduct, setDebugProduct] = useState<{
+    id: number;
+    payload: unknown;
+  } | null>(null);
+  const [debugLoadingId, setDebugLoadingId] = useState<number | null>(null);
+
+  const defaultCategoryId = categories[0]?.id ?? "";
+  const [form, setForm] = useState<ProductForm>({
+    nameAr: "",
+    nameEn: "",
+    descAr: "",
+    price: "",
+    categoryId: defaultCategoryId,
+    tagId: "",
+    image: "",
+    extras: [],
+  });
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadData = async () => {
+      setLoadError(null);
+      const [categoriesResult, tagsResult, productsResult] =
+        await Promise.allSettled([
+          fetchCategories(),
+          fetchTags(),
+          fetchProductsPage(),
+        ]);
+
+      if (!mounted) {
+        return;
+      }
+
+        if (
+          categoriesResult.status === "fulfilled" &&
+          categoriesResult.value &&
+          categoriesResult.value.length
+        ) {
+          const mapped = categoriesResult.value.map(mapApiCategory);
+          setCategories(mapped);
+        } else {
+          setCategories([]);
+          setLoadError(
+            getErrorMessage(
+              categoriesResult.status === "rejected"
+                ? categoriesResult.reason
+                : null,
+              "تعذر تحميل التصنيفات من الباك."
+            )
+          );
+        }
+
+      if (tagsResult.status === "fulfilled" && tagsResult.value) {
+        setTags(tagsResult.value.map(mapApiTag));
+      } else {
+        setTags([]);
+      }
+
+        if (productsResult.status === "fulfilled" && productsResult.value) {
+          setItems(productsResult.value.results.map(mapApiProduct));
+          setNextPath(productsResult.value.next);
+        } else {
+          setItems([]);
+          setLoadError(
+            getErrorMessage(
+              productsResult.status === "rejected"
+                ? productsResult.reason
+                : null,
+              "تعذر تحميل المنتجات من الباك."
+            )
+          );
+        }
+      };
+
+    loadData();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleLoadMore = async () => {
+    if (!nextPath || isLoadingMore) {
+      return;
+    }
+    setIsLoadingMore(true);
+    const page = await fetchProductsPage(nextPath);
+    if (page?.results?.length) {
+      setItems((prev) => [...prev, ...page.results.map(mapApiProduct)]);
+      setNextPath(page.next);
+    } else {
+      setNextPath(null);
+    }
+    setIsLoadingMore(false);
+  };
+
+  const resolvedCategoryId = useMemo(() => {
+    if (!categories.length) {
+      return "";
+    }
+    const exists = categories.some((category) => category.id === form.categoryId);
+    return exists ? form.categoryId : categories[0]?.id ?? "";
+  }, [categories, form.categoryId]);
+
+  const categoryMap = useMemo(() => {
+    const map = new Map<string, string>();
+    categories.forEach((category) => {
+      map.set(category.id, getLocalizedText(category.label, lang));
+    });
+    return map;
+  }, [categories, lang]);
+
+  const availableTags = tags;
+
+  const filteredItems = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return items;
+    }
+
+    return items.filter((item) => {
+      const name = getLocalizedText(item.name, lang).toLowerCase();
+      const categoryLabel = categoryMap.get(item.categoryId)?.toLowerCase() ?? "";
+      return (
+        name.includes(normalizedQuery) ||
+        categoryLabel.includes(normalizedQuery)
+      );
+    });
+  }, [query, lang, categoryMap, items]);
+
+  const handleEdit = (item: ProductRow) => {
+    setEditingId(item.id);
+    setForm({
+      nameAr: item.name.ar,
+      nameEn: item.name.en,
+      descAr: item.desc.ar,
+      price: String(item.price),
+      categoryId: item.categoryId,
+      tagId: item.tags[0]?.id ?? "",
+      image: item.image,
+      extras: item.extras.map((extra) => ({
+        uid: makeExtraId(),
+        id: extra.id,
+        nameAr: extra.name.ar,
+        nameEn: extra.name.en,
+        price: String(extra.price),
+      })),
+    });
+    setImageFile(null);
+    setFileInputKey((prev) => prev + 1);
+    setFormError(null);
+    setShowForm(true);
+  };
+
+  const resetForm = () => {
+    setForm({
+      nameAr: "",
+      nameEn: "",
+      descAr: "",
+      price: "",
+      categoryId: categories[0]?.id ?? "",
+      tagId: "",
+      image: "",
+      extras: [],
+    });
+    setImageFile(null);
+    setFileInputKey((prev) => prev + 1);
+    setFormError(null);
+  };
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setImageFile(null);
+      setForm((prev) => ({ ...prev, image: "" }));
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setForm((prev) => ({ ...prev, image: result }));
+    };
+    reader.readAsDataURL(file);
+    setImageFile(file);
+  };
+
+  const clearImage = () => {
+    setForm((prev) => ({ ...prev, image: defaultProductImage }));
+    setImageFile(null);
+    setFileInputKey((prev) => prev + 1);
+  };
+
+  const handleCreateTag = async () => {
+    const nameAr = newTagName.trim();
+    if (!nameAr || isCreatingTag) {
+      return;
+    }
+    setFormError(null);
+    setIsCreatingTag(true);
+    try {
+      const created = await createTag({
+        name_ar: nameAr,
+        name_en: nameAr,
+        code: buildTagCode(nameAr),
+      });
+      const mapped = mapApiTag(created);
+      setTags((prev) => [mapped, ...prev]);
+      setForm((prev) => ({ ...prev, tagId: mapped.id }));
+      setNewTagName("");
+    } catch {
+      setFormError("فشل إضافة العلامة من الباك.");
+    } finally {
+      setIsCreatingTag(false);
+    }
+  };
+
+  const buildOptimisticProduct = (
+    id: number,
+    existing?: ProductRow | null
+  ): ProductRow => {
+    const tag = tags.find((entry) => entry.id === form.tagId);
+    const extras = form.extras
+      .map((extra) => {
+        const nameAr = extra.nameAr.trim();
+        const nameEn = extra.nameEn.trim();
+        return {
+          id: extra.id,
+          name: toLocalizedText(nameAr || nameEn, nameEn || nameAr),
+          price: parseNumber(extra.price),
+        };
+      })
+      .filter(
+        (extra) =>
+          (extra.name.ar.trim() || extra.name.en.trim()) && extra.price > 0
+      );
+
+    return {
+      id,
+      name: toLocalizedText(form.nameAr, form.nameEn),
+      desc: toLocalizedText(form.descAr, form.descAr),
+      price: parseNumber(form.price),
+      categoryId: resolvedCategoryId || existing?.categoryId || "uncategorized",
+      image: form.image || existing?.image || defaultProductImage,
+      isAvailable: existing?.isAvailable ?? true,
+      tags: tag ? [tag] : [],
+      extras,
+    };
+  };
+
+  const handleDeleteTag = async (tagId: string) => {
+    if (!tagId) {
+      return;
+    }
+    const tag = tags.find((entry) => entry.id === tagId);
+    const label = tag ? getLocalizedText(tag.label, lang) : "";
+    const confirmed = window.confirm(
+      label ? `حذف العلامة "${label}"؟` : "حذف العلامة؟"
+    );
+    if (!confirmed) {
+      return;
+    }
+    setFormError(null);
+    try {
+      await deleteTag(Number(tagId));
+      setTags((prev) => prev.filter((entry) => entry.id !== tagId));
+      setForm((prev) => ({
+        ...prev,
+        tagId: prev.tagId === tagId ? "" : prev.tagId,
+      }));
+    } catch {
+      setFormError("فشل حذف العلامة من الباك.");
+    }
+  };
+
+  const handleSave = async () => {
+    setFormError(null);
+    const trimmedAr = form.nameAr.trim();
+    const descAr = form.descAr.trim();
+    const priceValue = form.price.trim();
+    const numericCategoryId = Number(resolvedCategoryId);
+    const hasNumericCategory = Number.isFinite(numericCategoryId) && numericCategoryId > 0;
+
+    if (!trimmedAr || !priceValue) {
+      return;
+    }
+    if (!hasNumericCategory) {
+      setFormError("لا يمكن حفظ المنتج قبل تحميل تصنيفات الباك. تأكد من الاتصال والتوكن.");
+      return;
+    }
+
+    const tagIdValue = form.tagId ? Number(form.tagId) : null;
+    const existing = editingId !== null
+      ? items.find((item) => item.id === editingId)
+      : null;
+    const extrasPayload = form.extras
+      .map((extra) => {
+        const nameAr = extra.nameAr.trim();
+        const nameEn = extra.nameEn.trim();
+        const resolvedNameAr = nameAr || nameEn;
+        return {
+          id: extra.id,
+          name_ar: resolvedNameAr,
+          name_en: nameEn || undefined,
+          price: extra.price.trim(),
+        };
+      })
+      .filter((extra) => (extra.name_ar || extra.name_en) && extra.price);
+
+    const payload = {
+      name_ar: trimmedAr,
+      description_ar: descAr || undefined,
+      category: numericCategoryId,
+      price: priceValue,
+      is_available: existing?.isAvailable ?? true,
+      tag_ids: tagIdValue ? [tagIdValue] : undefined,
+      ...(extrasPayload.length
+        ? { extras: extrasPayload }
+        : existing?.extras?.length
+          ? { extras: [] }
+          : {}),
+    };
+
+      if (editingId !== null) {
+        try {
+          const updated = await updateProduct(editingId, payload, imageFile);
+          const fresh = await fetchProduct(updated.id);
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === editingId
+                ? fresh
+                  ? mapApiProduct(fresh)
+                  : buildOptimisticProduct(updated.id, item)
+                : item
+            )
+          );
+        } catch (error) {
+          setFormError(
+            getErrorMessage(
+              error,
+              "فشل تحديث المنتج من الباك. تحقق من الاتصال والتوكن."
+            )
+          );
+          return;
+        }
+      } else {
+        try {
+          const created = await createProduct(payload, imageFile);
+          const fresh = await fetchProduct(created.id);
+          setItems((prev) => [
+            fresh ? mapApiProduct(fresh) : buildOptimisticProduct(created.id),
+            ...prev,
+          ]);
+        } catch (error) {
+          setFormError(
+            getErrorMessage(
+              error,
+              "فشل إضافة المنتج على الباك. تحقق من الاتصال والتوكن."
+            )
+          );
+          return;
+        }
+      }
+
+    setEditingId(null);
+    setShowForm(false);
+    resetForm();
+  };
+
+  const handleToggleAvailable = async (id: number) => {
+    const target = items.find((item) => item.id === id);
+    if (!target) {
+      return;
+    }
+
+    try {
+      const updated = await toggleProductAvailability(id);
+      setItems((prev) =>
+        prev.map((item) => (item.id === id ? mapApiProduct(updated) : item))
+      );
+      return;
+    } catch {
+      setActionError("تعذر تحديث حالة التوفر من الباك.");
+    }
+  };
+
+  const handleShowDebug = async (id: number) => {
+    if (debugLoadingId !== null) {
+      return;
+    }
+    setActionError(null);
+    setDebugLoadingId(id);
+    try {
+      const payload = await fetchProduct(id);
+      setDebugProduct({ id, payload });
+    } catch (error) {
+      setActionError(getErrorMessage(error, "فشل تحميل بيانات المنتج من الباك."));
+    } finally {
+      setDebugLoadingId(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+    setActionError(null);
+    try {
+      await deleteProduct(deleteTarget.id);
+      setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (error) {
+      setActionError(getErrorMessage(error, "فشل حذف المنتج من الباك."));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <header className="rounded-3xl border border-slate-200 bg-white/80 px-5 py-4 shadow-sm backdrop-blur">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="order-1 text-right lg:order-1">
+            <p className="text-sm font-semibold text-slate-900">إدارة المنتجات</p>
+            <p className="text-xs text-slate-400">{items.length} منتج</p>
+          </div>
+
+          <div className="order-2 flex-1 lg:order-2">
+            <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500">
+              <FiSearch />
+              <input
+                type="text"
+                placeholder="بحث عن منتج..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="w-full bg-transparent text-right outline-none"
+              />
+            </label>
+          </div>
+
+          <div className="order-3 flex items-center justify-start lg:order-3 lg:justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingId(null);
+                resetForm();
+                setActionError(null);
+                setLoadError(null);
+                setShowForm((prev) => !prev);
+              }}
+              className="flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(16,185,129,0.35)] transition hover:-translate-y-0.5"
+            >
+              <FiPlus />
+              إضافة منتج
+            </button>
+          </div>
+        </div>
+        {loadError ? (
+          <p className="mt-3 text-right text-xs font-semibold text-rose-600">
+            {loadError}
+          </p>
+        ) : null}
+        {actionError ? (
+          <p className="mt-3 text-right text-xs font-semibold text-rose-600">
+            {actionError}
+          </p>
+        ) : null}
+      </header>
+
+      {showForm ? (
+        <section className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-[0_20px_36px_rgba(15,23,42,0.08)]">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-right">
+              <p className="text-sm font-semibold text-slate-900">
+                {editingId !== null ? "تعديل المنتج" : "إضافة منتج جديد"}
+              </p>
+              <p className="text-xs text-slate-400">
+                أدخل التفاصيل الأساسية واضبط الإضافات والصورة بسهولة.
+              </p>
+            </div>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+              {editingId !== null ? "تعديل" : "إضافة"}
+            </span>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="mb-4 text-sm font-semibold text-slate-700">
+                  البيانات الأساسية
+                </p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block text-right text-sm text-slate-600">
+                    اسم المنتج (عربي)
+                    <input
+                      type="text"
+                      value={form.nameAr}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, nameAr: event.target.value }))
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="block text-right text-sm text-slate-600">
+                    اسم المنتج (English)
+                    <input
+                      type="text"
+                      value={form.nameEn}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, nameEn: event.target.value }))
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="block text-right text-sm text-slate-600">
+                    السعر
+                    <input
+                      type="number"
+                      value={form.price}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, price: event.target.value }))
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="block text-right text-sm text-slate-600">
+                    التصنيف
+                    <select
+                      value={resolvedCategoryId}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          categoryId: event.target.value,
+                        }))
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                    >
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {getLocalizedText(category.label, lang)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-right text-sm text-slate-600 md:col-span-2">
+                    وصف المنتج
+                    <input
+                      type="text"
+                      value={form.descAr}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, descAr: event.target.value }))
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="mb-4 text-sm font-semibold text-slate-700">العلامات</p>
+                <label className="block text-right text-sm text-slate-600">
+                  اختر العلامة
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <select
+                      value={form.tagId}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          tagId: event.target.value,
+                        }))
+                      }
+                      className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                    >
+                      <option value="">بدون</option>
+                      {availableTags.map((tag) => (
+                        <option key={tag.id} value={tag.id}>
+                          {getLocalizedText(tag.label, lang)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTag(form.tagId)}
+                      disabled={!form.tagId}
+                      className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                        form.tagId
+                          ? "border border-rose-200 bg-rose-50 text-rose-600"
+                          : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      حذف العلامة
+                    </button>
+                  </div>
+                </label>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={newTagName}
+                    onChange={(event) => setNewTagName(event.target.value)}
+                    placeholder="اكتب اسم العلامة الجديدة"
+                    className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCreateTag}
+                    disabled={!newTagName.trim() || isCreatingTag}
+                    className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                      !newTagName.trim() || isCreatingTag
+                        ? "cursor-not-allowed bg-slate-200 text-slate-500"
+                        : "bg-emerald-600 text-white"
+                    }`}
+                  >
+                    {isCreatingTag ? "جارٍ الإضافة..." : "إضافة علامة"}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  لو مش لاقي العلامة، اكتبها واضغط إضافة.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-right text-sm font-semibold text-slate-700">
+                    الإضافات
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        extras: [
+                          ...prev.extras,
+                          { uid: makeExtraId(), nameAr: "", nameEn: "", price: "" },
+                        ],
+                      }))
+                    }
+                    className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
+                  >
+                    إضافة إضافة
+                  </button>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {form.extras.length ? (
+                    form.extras.map((extra) => (
+                      <div
+                        key={extra.uid}
+                        className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-3 py-3 md:grid-cols-[1.2fr_1.2fr_0.6fr_auto]"
+                      >
+                        <input
+                          type="text"
+                          placeholder="اسم الإضافة (عربي)"
+                          value={extra.nameAr}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              extras: prev.extras.map((item) =>
+                                item.uid === extra.uid
+                                  ? { ...item, nameAr: event.target.value }
+                                  : item
+                              ),
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="اسم الإضافة (English)"
+                          value={extra.nameEn}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              extras: prev.extras.map((item) =>
+                                item.uid === extra.uid
+                                  ? { ...item, nameEn: event.target.value }
+                                  : item
+                              ),
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none"
+                        />
+                        <input
+                          type="number"
+                          placeholder="السعر"
+                          value={extra.price}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              extras: prev.extras.map((item) =>
+                                item.uid === extra.uid
+                                  ? { ...item, price: event.target.value }
+                                  : item
+                              ),
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              extras: prev.extras.filter(
+                                (item) => item.uid !== extra.uid
+                              ),
+                            }))
+                          }
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-rose-500"
+                        >
+                          حذف
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400">
+                      لا توجد إضافات. يمكنك إضافة إضافات اختيارية للمنتج.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="mb-4 text-sm font-semibold text-slate-700">
+                  صورة المنتج
+                </p>
+                <div className="flex flex-wrap items-center justify-end gap-4">
+                  <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                    {form.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={form.image}
+                        alt="صورة المنتج"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-[11px] text-slate-400">بدون صورة</span>
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+                    <input
+                      key={fileInputKey}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="block w-full cursor-pointer rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+                    />
+                    {form.image ? (
+                      <button
+                        type="button"
+                        onClick={clearImage}
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
+                      >
+                        استخدام الصورة الافتراضية
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-400">
+                  ارفع صورة بصيغة PNG أو JPG، وسيتم استخدامها في المنتج.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false);
+                setEditingId(null);
+                resetForm();
+              }}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-[0_12px_22px_rgba(16,185,129,0.25)]"
+            >
+              {editingId !== null ? "حفظ التعديل" : "إضافة المنتج"}
+            </button>
+          </div>
+          {formError ? (
+            <p className="mt-3 text-right text-xs font-semibold text-rose-600">
+              {formError}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
+            <div className="text-right">
+              <h3 className="text-lg font-semibold text-slate-900">تأكيد الحذف</h3>
+              <p className="mt-2 text-sm text-slate-500">
+                هل تريد حذف المنتج{" "}
+                <span className="font-semibold text-slate-700">
+                  {deleteTarget.name}
+                </span>
+                ؟
+              </p>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white"
+              >
+                حذف المنتج
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {debugProduct ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-900">
+                بيانات المنتج #{debugProduct.id}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setDebugProduct(null)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500"
+              >
+                إغلاق
+              </button>
+            </div>
+            <pre className="mt-4 max-h-[60vh] overflow-auto rounded-2xl bg-slate-900 px-4 py-3 text-xs text-emerald-100">
+{JSON.stringify(debugProduct.payload, null, 2)}
+            </pre>
+            <p className="mt-3 text-xs text-slate-500">
+              لو حقل الإضافات غير ظاهر هنا، يبقى الباك مش بيرجّعها.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+        <section
+          className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          dir="rtl"
+        >
+          <div className="overflow-x-auto">
+            <div className="w-full">
+              <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.6fr)_minmax(0,0.8fr)] border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-600">
+              <div className="text-right">المنتج</div>
+              <div className="text-right">التصنيف</div>
+              <div className="text-right">السعر</div>
+              <div className="text-right">العلامات</div>
+              <div className="text-right">الإضافات</div>
+              <div className="text-center">متاح</div>
+              <div className="text-center">الإجراءات</div>
+            </div>
+
+            {filteredItems.map((item) => {
+              const name = getLocalizedText(item.name, lang);
+              const categoryLabel =
+                categoryMap.get(item.categoryId) ?? item.categoryId;
+              const tag = item.tags[0];
+              const tagLabel = tag ? getLocalizedText(tag.label, lang) : "";
+
+              return (
+                <div
+                  key={item.id}
+                  className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,0.6fr)_minmax(0,0.8fr)] items-center border-b border-slate-100 px-5 py-4 text-sm text-slate-700 last:border-b-0"
+                >
+                  <div className="flex items-center justify-start gap-3 text-right">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.image}
+                      alt={name}
+                      className="h-12 w-12 rounded-2xl object-cover shadow-[0_8px_18px_rgba(15,23,42,0.12)]"
+                      loading="lazy"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-900">{name}</p>
+                      <span className="text-xs text-slate-400">#{item.id}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-right text-sm text-slate-600">
+                    <span className="rounded-full border border-slate-200 px-3 py-1 text-xs">
+                      {categoryLabel}
+                    </span>
+                  </div>
+
+                  <div className="text-right font-semibold text-slate-900">
+                    {formatCurrency(item.price, lang)}
+                  </div>
+
+                  <div className="flex items-center justify-start gap-2 whitespace-nowrap">
+                    {tagLabel ? (
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getTagTone(
+                          tag?.colorKey
+                        )}`}
+                      >
+                        {tagLabel}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-300">-</span>
+                    )}
+                  </div>
+
+                  <div className="text-right">
+                    {item.extras.length ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {item.extras.slice(0, 2).map((extra, index) => (
+                          <span
+                            key={`${extra.id ?? index}`}
+                            className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-600"
+                          >
+                            {getLocalizedText(extra.name, lang)} •{" "}
+                            {formatCurrency(extra.price, lang)}
+                          </span>
+                        ))}
+                        {item.extras.length > 2 ? (
+                          <span className="text-[11px] text-slate-400">
+                            +{item.extras.length - 2}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-300">-</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAvailable(item.id)}
+                      className={`relative h-6 w-11 rounded-full transition ${
+                        item.isAvailable ? "bg-emerald-500" : "bg-slate-200"
+                      }`}
+                      aria-pressed={item.isAvailable}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                          item.isAvailable ? "left-5" : "left-0.5"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(item)}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
+                    >
+                      <FiEdit2 />
+                      تعديل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShowDebug(item.id)}
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
+                      disabled={debugLoadingId === item.id}
+                    >
+                      {debugLoadingId === item.id ? "جارٍ..." : "عرض بيانات"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget({ id: item.id, name })}
+                      className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-rose-500"
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {nextPath ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-sm ${
+              isLoadingMore
+                ? "cursor-not-allowed bg-slate-200 text-slate-500"
+                : "bg-emerald-600 text-white"
+            }`}
+          >
+            {isLoadingMore ? "جارٍ التحميل..." : "تحميل المزيد"}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
